@@ -1,0 +1,196 @@
+package com.slayer.binacet.service.impl;
+
+import com.slayer.binacet.Enums.FuturesOrderStatus;
+import com.slayer.binacet.Enums.FuturesOrderType;
+import com.slayer.binacet.dto.event.OrderEvent;
+import com.slayer.binacet.dto.request.CreateFuturesOrderRequest;
+import com.slayer.binacet.dto.response.FuturesOrderResponse;
+import com.slayer.binacet.entity.*;
+import com.slayer.binacet.event.FuturesOrderProducer;
+import com.slayer.binacet.mapper.FuturesOrderMapper;
+import com.slayer.binacet.repository.*;
+import com.slayer.binacet.service.FuturesOrderService;
+import com.slayer.binacet.service.FuturesWalletService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Instant;
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class FuturesOrderServiceImpl implements FuturesOrderService {
+
+    private final FuturesOrderRepository futuresOrderRepository;
+    private final FuturesInstrumentRepository instrumentRepository;
+    private final FuturesWalletRepository futuresWalletRepository;
+    private final FuturesOrderMapper futuresOrderMapper;
+    private final FuturesMatchingServiceImpl matchingEngineService;
+    private final FuturesMarketSyncService futuresMarketSyncService;
+
+    private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final FuturesWalletService futuresWalletService;
+    private final FuturesOrderProducer futuresOrderProducer;
+
+    @Override
+    @Transactional
+    public FuturesOrderResponse createFuturesOrder(CreateFuturesOrderRequest request) {
+        User user = getCurrentUser();
+
+        FuturesInstrument instrument = instrumentRepository.findById(request.getSymbol().toUpperCase())
+                .orElseThrow(() -> new RuntimeException("Cặp giao dịch không hợp lệ"));
+
+        if (!"active".equals(instrument.getStatus())) {
+            throw new RuntimeException("Cặp giao dịch này hiện không khả dụng để giao dịch");
+        }
+
+        // 1. Tính toán giá ký quỹ
+        BigDecimal priceToCalculate;
+        if (request.getOrderType() == FuturesOrderType.MARKET) {
+            priceToCalculate = futuresMarketSyncService.getMarkPrice(request.getSymbol());
+
+        }else {
+            // để validate không cho đặt giá quá xa (chống fat-finger)
+            priceToCalculate = request.getPrice();
+            if (priceToCalculate == null || priceToCalculate.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new RuntimeException("Lệnh LIMIT bắt buộc phải có giá hợp lệ");
+            }
+        }
+
+        BigDecimal notionalValue = request.getQuantity().multiply(priceToCalculate);
+        BigDecimal requiredMargin = notionalValue.divide(request.getLeverage(), 18, RoundingMode.HALF_UP);
+
+        // 2. Khóa Margin trong Ví
+        FuturesWallet wallet = futuresWalletRepository.findForUpdate(user.getId(), instrument.getMarginCurrencyShortName())
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy ví Futures"));
+
+        if (!request.isReduceOnly()) {
+            // Chỉ kiểm tra và khóa ví nếu đây là lệnh MỞ vị thế thông thường
+            if (wallet.getAvailableMargin().compareTo(requiredMargin) < 0) {
+                throw new RuntimeException("Số dư khả dụng không đủ để đặt lệnh");
+            }
+            futuresWalletService.lockMargin(user.getId(), instrument.getMarginCurrencyShortName(), requiredMargin);
+        }
+
+        FuturesOrder order = futuresOrderMapper.toEntity(request);
+        order.setUser(user);
+        order.setInstrument(instrument);
+        order.setStatus(FuturesOrderStatus.OPEN);
+        order.setMarginCurrencyShortName(instrument.getMarginCurrencyShortName());
+        order.setCreatedAt(Instant.now());
+        order.setUpdatedAt(Instant.now());
+
+        order.setTotalQuantity(request.getQuantity());
+        order.setRemainingQuantity(request.getQuantity());
+        order.setExecutedQuantity(BigDecimal.ZERO);
+
+        order.setPrice(priceToCalculate);
+
+
+        FuturesOrder savedOrder = futuresOrderRepository.save(order);
+
+        // 4. PHÂN LUỒNG XỬ LÝ
+        if (request.getOrderType() == FuturesOrderType.MARKET) {
+            matchingEngineService.matchFuturesOrder(savedOrder.getId());
+
+        } else if (request.getOrderType() == FuturesOrderType.LIMIT) {
+            // Treo lên Sổ lệnh bằng cách đẩy vào Kafka
+            OrderEvent event = OrderEvent.builder()
+                    .orderId(savedOrder.getId())
+                    .symbol(savedOrder.getInstrument().getSymbol())
+                    .side(savedOrder.getSide())
+                    .orderType(savedOrder.getOrderType())
+                    .price(savedOrder.getPrice())
+                    .quantity(savedOrder.getTotalQuantity())
+                    .remainingQuantity(savedOrder.getRemainingQuantity())
+                    .timestamp(savedOrder.getCreatedAt())
+                    .action("CREATE")
+                    .build();
+
+            futuresOrderProducer.sendOrderToQueue(event);
+        }
+
+        // 5. Trả về kết quả cho API
+        return futuresOrderMapper.toResponse(savedOrder);
+    }
+
+    @Override
+    @Transactional
+    public FuturesOrderResponse cancelFuturesOrder(String orderId) {
+        User user = getCurrentUser();
+        FuturesOrder order = futuresOrderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy lệnh"));
+
+        if (!order.getUser().getId().equals(user.getId())) {
+            throw new RuntimeException("Bạn không có quyền hủy lệnh này");
+        }
+
+        if (order.getStatus() != FuturesOrderStatus.OPEN && order.getStatus() != FuturesOrderStatus.PARTIALLY_FILLED) {
+            throw new RuntimeException("Chỉ có thể hủy lệnh đang chờ khớp");
+        }
+
+        // 1. Tính toán lượng Ký quỹ cần hoàn trả dựa trên số lượng chưa khớp
+        BigDecimal marginToRelease = order.getRemainingQuantity()
+                .multiply(order.getPrice())
+                .divide(order.getLeverage(), 18, RoundingMode.HALF_UP);
+
+        // 2. Mở khóa Ký quỹ trả về Ví Futures
+        FuturesWallet wallet = futuresWalletRepository.findForUpdate(
+                        user.getId(), order.getMarginCurrencyShortName())
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy ví Futures"));
+
+        wallet.setLockedBalance(wallet.getLockedBalance().subtract(marginToRelease).max(BigDecimal.ZERO));
+        wallet.setBalance(wallet.getBalance().add(marginToRelease));
+        futuresWalletRepository.save(wallet);
+
+        order.setCancelledQuantity(order.getRemainingQuantity());
+        order.setRemainingQuantity(BigDecimal.ZERO);
+        order.setStatus(FuturesOrderStatus.CANCELLED);
+        order.setUpdatedAt(Instant.now());
+
+        FuturesOrder savedOrder = futuresOrderRepository.save(order);
+
+        return futuresOrderMapper.toResponse(savedOrder);
+    }
+
+    @Override
+    public Page<FuturesOrderResponse> getMyFuturesOrders(String symbol, String status, Pageable pageable) {
+        Page<FuturesOrder> orders;
+        String userId = getCurrentUser().getId();
+
+        // Xử lý truy vấn linh hoạt dựa trên các bộ lọc tùy chọn
+        if (symbol != null && !symbol.isEmpty() && status != null && !status.isEmpty()) {
+            orders = futuresOrderRepository.findByUserIdAndInstrument_SymbolAndStatus(
+                    userId, symbol.toUpperCase(), FuturesOrderStatus.valueOf(status.toUpperCase()), pageable);
+        } else if (symbol != null && !symbol.isEmpty()) {
+            orders = futuresOrderRepository.findByUserIdAndInstrument_Symbol(
+                    userId, symbol.toUpperCase(), pageable);
+        } else if (status != null && !status.isEmpty()) {
+            orders = futuresOrderRepository.findByUserIdAndStatus(
+                    userId, FuturesOrderStatus.valueOf(status.toUpperCase()), pageable);
+        } else {
+            orders = futuresOrderRepository.findByUserId(userId, pageable);
+        }
+
+        return orders.map(futuresOrderMapper::toResponse);
+    }
+
+    public static User getCurrentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new RuntimeException("Người dùng chưa đăng nhập");
+        }
+
+        return (User) authentication.getPrincipal();
+    }
+
+}
