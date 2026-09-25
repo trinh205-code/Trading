@@ -6,6 +6,7 @@ import {
   CreateFuturesOrderRequest,
   ClosePartialPositionRequest,
   FuturesTradeResponse,
+  FuturesPositionHistoryResponse,
   FuturesWalletResponse,
   FuturesInstrumentResponse,
 } from '../types/futures';
@@ -14,6 +15,20 @@ export const futuresApi = {
   // Positions
   getPositions: async (): Promise<ApiResponse<FuturesPositionResponse[]>> => {
     return axiosClient.get('/futures/positions');
+  },
+
+  getPositionHistory: async (
+    symbol?: string,
+    page: number = 0,
+    size: number = 20
+  ): Promise<ApiResponse<PageResponse<FuturesPositionHistoryResponse>>> => {
+    return axiosClient.get('/futures/positions/history', {
+      params: {
+        symbol: symbol || undefined,
+        page,
+        size,
+      },
+    });
   },
 
   closePosition: async (positionId: number): Promise<ApiResponse<FuturesPositionResponse>> => {

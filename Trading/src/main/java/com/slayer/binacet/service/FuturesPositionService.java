@@ -18,4 +18,7 @@ public interface FuturesPositionService {
 
         FuturesPositionResponse closePartialPosition(ClosePartialPositionRequest request);
 
+        // 4. Lấy lịch sử vị thế (Position History)
+        org.springframework.data.domain.Page<com.slayer.binacet.dto.response.FuturesPositionHistoryResponse> getPositionHistory(
+                String symbol, org.springframework.data.domain.Pageable pageable);
 }

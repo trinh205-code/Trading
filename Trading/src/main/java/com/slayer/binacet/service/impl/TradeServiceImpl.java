@@ -92,7 +92,8 @@ public class TradeServiceImpl implements TradeService {
 
         Pageable pageable = PageRequest.of(page, size);
 
-        Page<Trade> trades = tradeRepository.findUserTrades(currentUser.getId(), symbol, pageable);
+        String querySymbol = (symbol != null && !symbol.isBlank()) ? symbol.toUpperCase() : null;
+        Page<Trade> trades = tradeRepository.findUserTrades(currentUser.getId(), querySymbol, pageable);
         return trades.map(tradeMapper::toResponse);
     }
 

@@ -18,7 +18,15 @@ import {
 import { CoinIcon } from '../../components/common/CoinIcon';
 import axiosClient from '../../api/axiosClient';
 import { formatOrderStatus, formatOrderType, formatOrderSide } from '../../utils/orderFormatters';
-import { FuturesPositionResponse } from '../../types/futures';
+import {
+  FuturesPositionResponse,
+  FuturesOrderResponse,
+  FuturesTradeResponse,
+  FuturesPositionHistoryResponse,
+} from '../../types/futures';
+import { TradeResponse } from '../../types/order';
+import { futuresApi } from '../../api/futuresApi';
+import { orderApi } from '../../api/orderApi';
 import { WalletProfitChart } from '../../components/wallet/WalletProfitChart';
 
 type MainTab = 'overview' | 'funding' | 'trading' | 'orderCenter';
@@ -67,6 +75,19 @@ export const WalletPage: React.FC = () => {
   const [orderSubTab, setOrderSubTab] = useState<'open' | 'history' | 'posHistory' | 'trades'>('open');
   const [orderSymbolFilter, setOrderSymbolFilter] = useState('');
   const [orderTypeFilter, setOrderTypeFilter] = useState('ALL');
+  const [orderMarketFilter, setOrderMarketFilter] = useState<'ALL' | 'SPOT' | 'FUTURES'>('ALL');
+
+  // Order Center Data
+  const [futuresOrders, setFuturesOrders] = useState<FuturesOrderResponse[]>([]);
+  const [loadingFuturesOrders, setLoadingFuturesOrders] = useState<boolean>(false);
+  const [cancellingFuturesId, setCancellingFuturesId] = useState<string | null>(null);
+
+  const [futuresTrades, setFuturesTrades] = useState<FuturesTradeResponse[]>([]);
+  const [spotTrades, setSpotTrades] = useState<TradeResponse[]>([]);
+  const [loadingTrades, setLoadingTrades] = useState<boolean>(false);
+
+  const [positionHistory, setPositionHistory] = useState<FuturesPositionHistoryResponse[]>([]);
+  const [loadingPosHistory, setLoadingPosHistory] = useState<boolean>(false);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [hideSmallBalances, setHideSmallBalances] = useState(false);
@@ -96,6 +117,72 @@ export const WalletPage: React.FC = () => {
     }
   };
 
+  const fetchOrderCenterData = async () => {
+    const sym = orderSymbolFilter || undefined;
+    fetchMyOrders(sym, currentPage);
+
+    // Fetch futures orders
+    setLoadingFuturesOrders(true);
+    try {
+      const res: any = await futuresApi.getOrders(sym, undefined, 0, 50);
+      if (res.success && res.data) {
+        const list = Array.isArray(res.data) ? res.data : (res.data.content || []);
+        setFuturesOrders(list);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoadingFuturesOrders(false);
+    }
+
+    // Fetch position history
+    setLoadingPosHistory(true);
+    try {
+      const res: any = await futuresApi.getPositionHistory(sym, 0, 50);
+      if (res.success && res.data) {
+        const list = Array.isArray(res.data) ? res.data : (res.data.content || []);
+        setPositionHistory(list);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoadingPosHistory(false);
+    }
+
+    // Fetch trades
+    setLoadingTrades(true);
+    try {
+      const [fTradeRes, sTradeRes]: any = await Promise.all([
+        futuresApi.getTrades(sym, 0, 50).catch(() => ({ success: false })),
+        orderApi.getMyTrades(sym, 0, 50).catch(() => ({ success: false })),
+      ]);
+      if (fTradeRes.success && fTradeRes.data) {
+        const list = Array.isArray(fTradeRes.data) ? fTradeRes.data : (fTradeRes.data.content || []);
+        setFuturesTrades(list);
+      }
+      if (sTradeRes.success && sTradeRes.data) {
+        const list = Array.isArray(sTradeRes.data) ? sTradeRes.data : (sTradeRes.data.content || []);
+        setSpotTrades(list);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoadingTrades(false);
+    }
+  };
+
+  const handleCancelFuturesOrder = async (orderId: string) => {
+    setCancellingFuturesId(orderId);
+    try {
+      await futuresApi.cancelOrder(orderId);
+      await fetchOrderCenterData();
+    } catch (err: any) {
+      alert(err.message || 'Không thể hủy lệnh');
+    } finally {
+      setCancellingFuturesId(null);
+    }
+  };
+
   useEffect(() => {
     fetchData();
     const interval = setInterval(() => {
@@ -106,9 +193,9 @@ export const WalletPage: React.FC = () => {
 
   useEffect(() => {
     if (activeTab === 'orderCenter') {
-      fetchMyOrders(orderSymbolFilter || undefined, currentPage);
+      fetchOrderCenterData();
     }
-  }, [activeTab, orderSymbolFilter, currentPage, fetchMyOrders]);
+  }, [activeTab, orderSymbolFilter, currentPage]);
 
   const handleClaimFaucet = async () => {
     try {
@@ -214,13 +301,189 @@ export const WalletPage: React.FC = () => {
     });
   }, [wallets, searchQuery, hideSmallBalances, priceMap]);
 
-  const openOrders = useMemo(() => {
+  const spotOpenOrders = useMemo(() => {
     return orders.filter((o) => o.status === 'NEW' || o.status === 'PARTIALLY_FILLED');
   }, [orders]);
 
-  const historyOrders = useMemo(() => {
+  const futuresOpenOrders = useMemo(() => {
+    return futuresOrders.filter((o) => o.status === 'OPEN' || o.status === 'PARTIALLY_FILLED');
+  }, [futuresOrders]);
+
+  const spotHistoryOrders = useMemo(() => {
     return orders.filter((o) => o.status !== 'NEW' && o.status !== 'PARTIALLY_FILLED');
   }, [orders]);
+
+  const futuresHistoryOrders = useMemo(() => {
+    return futuresOrders.filter((o) => o.status !== 'OPEN' && o.status !== 'PARTIALLY_FILLED');
+  }, [futuresOrders]);
+
+  const combinedOpenOrders = useMemo(() => {
+    let list: Array<{
+      id: string;
+      marketType: 'SPOT' | 'FUTURES';
+      symbol: string;
+      side: string;
+      orderType: string;
+      price: number;
+      quantity: number;
+      remainingQuantity?: number;
+      status: string;
+      createdAt?: string;
+      leverage?: number;
+    }> = [];
+
+    if (orderMarketFilter === 'ALL' || orderMarketFilter === 'SPOT') {
+      list.push(
+        ...spotOpenOrders.map((o) => ({
+          id: o.id,
+          marketType: 'SPOT' as const,
+          symbol: o.symbol,
+          side: o.side,
+          orderType: o.orderType,
+          price: o.pricePerUnit,
+          quantity: o.totalQuantity,
+          remainingQuantity: o.remainingQuantity,
+          status: o.status,
+          createdAt: o.createdAt,
+        }))
+      );
+    }
+
+    if (orderMarketFilter === 'ALL' || orderMarketFilter === 'FUTURES') {
+      list.push(
+        ...futuresOpenOrders.map((o) => ({
+          id: o.id,
+          marketType: 'FUTURES' as const,
+          symbol: o.symbol,
+          side: o.side,
+          orderType: o.orderType,
+          price: o.price,
+          quantity: o.totalQuantity,
+          remainingQuantity: o.remainingQuantity,
+          status: o.status,
+          createdAt: o.createdAt,
+          leverage: o.leverage,
+        }))
+      );
+    }
+
+    if (orderTypeFilter !== 'ALL') {
+      list = list.filter((o) => o.orderType?.toUpperCase() === orderTypeFilter);
+    }
+
+    return list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+  }, [spotOpenOrders, futuresOpenOrders, orderMarketFilter, orderTypeFilter]);
+
+  const combinedHistoryOrders = useMemo(() => {
+    let list: Array<{
+      id: string;
+      marketType: 'SPOT' | 'FUTURES';
+      symbol: string;
+      side: string;
+      orderType: string;
+      price: number;
+      quantity: number;
+      remainingQuantity?: number;
+      status: string;
+      createdAt?: string;
+      leverage?: number;
+    }> = [];
+
+    if (orderMarketFilter === 'ALL' || orderMarketFilter === 'SPOT') {
+      list.push(
+        ...spotHistoryOrders.map((o) => ({
+          id: o.id,
+          marketType: 'SPOT' as const,
+          symbol: o.symbol,
+          side: o.side,
+          orderType: o.orderType,
+          price: o.avgPrice || o.pricePerUnit,
+          quantity: o.totalQuantity,
+          remainingQuantity: o.remainingQuantity,
+          status: o.status,
+          createdAt: o.createdAt,
+        }))
+      );
+    }
+
+    if (orderMarketFilter === 'ALL' || orderMarketFilter === 'FUTURES') {
+      list.push(
+        ...futuresHistoryOrders.map((o) => ({
+          id: o.id,
+          marketType: 'FUTURES' as const,
+          symbol: o.symbol,
+          side: o.side,
+          orderType: o.orderType,
+          price: o.avgPrice || o.price,
+          quantity: o.totalQuantity,
+          remainingQuantity: o.remainingQuantity,
+          status: o.status,
+          createdAt: o.createdAt,
+          leverage: o.leverage,
+        }))
+      );
+    }
+
+    if (orderTypeFilter !== 'ALL') {
+      list = list.filter((o) => o.orderType?.toUpperCase() === orderTypeFilter);
+    }
+
+    return list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+  }, [spotHistoryOrders, futuresHistoryOrders, orderMarketFilter, orderTypeFilter]);
+
+  const combinedTrades = useMemo(() => {
+    let list: Array<{
+      id: string | number;
+      marketType: 'SPOT' | 'FUTURES';
+      symbol: string;
+      side: string;
+      price: number;
+      quantity: number;
+      notional: number;
+      feeAmount?: number;
+      timestamp: string;
+      role?: string;
+    }> = [];
+
+    if (orderMarketFilter === 'ALL' || orderMarketFilter === 'SPOT') {
+      list.push(
+        ...spotTrades.map((t) => ({
+          id: `spot-${t.id}`,
+          marketType: 'SPOT' as const,
+          symbol: t.symbol,
+          side: t.side,
+          price: t.price,
+          quantity: t.quantity,
+          notional: t.totalQuote || (t.price * t.quantity),
+          feeAmount: t.feeAmount,
+          timestamp: t.timestamp,
+          role: t.executionVenue || 'Khớp nội bộ',
+        }))
+      );
+    }
+
+    if (orderMarketFilter === 'ALL' || orderMarketFilter === 'FUTURES') {
+      list.push(
+        ...futuresTrades.map((t) => ({
+          id: `futures-${t.id}`,
+          marketType: 'FUTURES' as const,
+          symbol: t.symbol,
+          side: t.side,
+          price: t.price,
+          quantity: t.quantity,
+          notional: t.notional || (t.price * t.quantity),
+          feeAmount: t.feeAmount,
+          timestamp: t.timestamp,
+          role: t.isMaker ? 'Maker' : 'Taker',
+        }))
+      );
+    }
+
+    return list.sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
+  }, [spotTrades, futuresTrades, orderMarketFilter]);
+
+  const openOrders = combinedOpenOrders;
+  const historyOrders = combinedHistoryOrders;
 
   return (
     <div className="min-h-[calc(100vh-3rem)] bg-[#000000] text-white select-none text-xs pb-16 font-sans">
@@ -814,41 +1077,55 @@ export const WalletPage: React.FC = () => {
             <div className="flex items-center space-x-6 border-b border-[#1e1e1e] pb-3 mb-5 overflow-x-auto text-xs">
               <button
                 onClick={() => setOrderSubTab('open')}
-                className={`font-bold transition-colors pb-1 border-b-2 ${
+                className={`font-bold transition-colors pb-1 border-b-2 whitespace-nowrap ${
                   orderSubTab === 'open' ? 'text-white border-white' : 'text-[#777777] border-transparent hover:text-white'
                 }`}
               >
-                Lệnh chờ khớp ({openOrders.length})
+                Lệnh chờ khớp ({combinedOpenOrders.length})
               </button>
               <button
                 onClick={() => setOrderSubTab('history')}
-                className={`font-bold transition-colors pb-1 border-b-2 ${
+                className={`font-bold transition-colors pb-1 border-b-2 whitespace-nowrap ${
                   orderSubTab === 'history' ? 'text-white border-white' : 'text-[#777777] border-transparent hover:text-white'
                 }`}
               >
-                Lịch sử lệnh
+                Lịch sử lệnh ({combinedHistoryOrders.length})
               </button>
               <button
                 onClick={() => setOrderSubTab('posHistory')}
-                className={`font-bold transition-colors pb-1 border-b-2 ${
+                className={`font-bold transition-colors pb-1 border-b-2 whitespace-nowrap ${
                   orderSubTab === 'posHistory' ? 'text-white border-white' : 'text-[#777777] border-transparent hover:text-white'
                 }`}
               >
-                Lịch sử vị thế
+                Lịch sử vị thế ({positionHistory.length})
               </button>
               <button
                 onClick={() => setOrderSubTab('trades')}
-                className={`font-bold transition-colors pb-1 border-b-2 ${
+                className={`font-bold transition-colors pb-1 border-b-2 whitespace-nowrap ${
                   orderSubTab === 'trades' ? 'text-white border-white' : 'text-[#777777] border-transparent hover:text-white'
                 }`}
               >
-                Lịch sử giao dịch
+                Lịch sử giao dịch ({combinedTrades.length})
               </button>
             </div>
 
             {/* Filter Bar */}
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6 text-xs">
               <div className="flex flex-wrap items-center gap-3">
+                {/* Market filter */}
+                <div className="flex items-center space-x-2">
+                  <span className="text-[#777777]">Thị trường:</span>
+                  <select
+                    value={orderMarketFilter}
+                    onChange={(e) => setOrderMarketFilter(e.target.value as any)}
+                    className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-[#00c076]"
+                  >
+                    <option value="ALL">Tất cả (Spot & Futures)</option>
+                    <option value="SPOT">Giao ngay (Spot)</option>
+                    <option value="FUTURES">Hợp đồng (Futures)</option>
+                  </select>
+                </div>
+
                 {/* Symbol filter */}
                 <div className="flex items-center space-x-2">
                   <span className="text-[#777777]">Công cụ:</span>
@@ -857,46 +1134,50 @@ export const WalletPage: React.FC = () => {
                     onChange={(e) => setOrderSymbolFilter(e.target.value)}
                     className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-[#00c076]"
                   >
-                    <option value="">Tất cả</option>
-                    <option value="BTCUSDT">BTC/USDT</option>
-                    <option value="ETHUSDT">ETH/USDT</option>
-                    <option value="SOLUSDT">SOL/USDT</option>
-                    <option value="DOGEUSDT">DOGE/USDT</option>
-                    <option value="XRPUSDT">XRP/USDT</option>
+                    <option value="">Tất cả cặp coin</option>
+                    {markets.map((m) => (
+                      <option key={m.symbol} value={m.symbol}>
+                        {m.symbol}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
                 {/* Order Type filter */}
-                <div className="flex items-center space-x-2">
-                  <span className="text-[#777777]">Loại lệnh:</span>
-                  <select
-                    value={orderTypeFilter}
-                    onChange={(e) => setOrderTypeFilter(e.target.value)}
-                    className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-[#00c076]"
-                  >
-                    <option value="ALL">Giới hạn/Thị trường</option>
-                    <option value="LIMIT">Giới hạn (Limit)</option>
-                    <option value="MARKET">Thị trường (Market)</option>
-                  </select>
-                </div>
+                {(orderSubTab === 'open' || orderSubTab === 'history') && (
+                  <div className="flex items-center space-x-2">
+                    <span className="text-[#777777]">Loại lệnh:</span>
+                    <select
+                      value={orderTypeFilter}
+                      onChange={(e) => setOrderTypeFilter(e.target.value)}
+                      className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-[#00c076]"
+                    >
+                      <option value="ALL">Giới hạn/Thị trường</option>
+                      <option value="LIMIT">Giới hạn (Limit)</option>
+                      <option value="MARKET">Thị trường (Market)</option>
+                    </select>
+                  </div>
+                )}
               </div>
 
               <button
-                onClick={() => fetchMyOrders(orderSymbolFilter || undefined, currentPage)}
-                className="px-3 py-1.5 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#222222] text-[#cccccc] hover:text-white flex items-center space-x-1.5"
+                onClick={() => fetchOrderCenterData()}
+                className="px-3 py-1.5 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#222222] text-[#cccccc] hover:text-white flex items-center space-x-1.5 transition-colors"
+                title="Làm mới dữ liệu"
               >
-                <Filter className="w-3.5 h-3.5" />
-                <span>Bộ lọc</span>
+                <RefreshCw className={`w-3.5 h-3.5 ${loadingFuturesOrders || loadingTrades || loadingPosHistory ? 'animate-spin text-[#00c076]' : ''}`} />
+                <span>Làm mới</span>
               </button>
             </div>
 
-            {/* Content Display */}
+            {/* Content Display: 1. LỆNH CHỜ KHỚP */}
             {orderSubTab === 'open' && (
               <div className="overflow-x-auto">
                 <table className="w-full text-left font-mono">
                   <thead>
                     <tr className="text-[#666666] text-[11px] border-b border-[#1e1e1e] bg-[#161616]">
                       <th className="py-3 px-4">Thời gian</th>
+                      <th className="py-3 px-4">Thị trường</th>
                       <th className="py-3 px-4">Cặp Coin</th>
                       <th className="py-3 px-4">Loại</th>
                       <th className="py-3 px-4">Chiều</th>
@@ -907,19 +1188,19 @@ export const WalletPage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#1e1e1e] text-xs">
-                    {openOrders.length === 0 ? (
+                    {combinedOpenOrders.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="py-16 text-center text-[#555555] font-sans">
+                        <td colSpan={9} className="py-16 text-center text-[#555555] font-sans">
                           <div className="flex flex-col items-center justify-center space-y-2">
                             <div className="w-12 h-12 rounded-full bg-[#1a1a1a] border border-[#262626] flex items-center justify-center text-[#666666]">
                               <HelpCircle className="w-6 h-6" />
                             </div>
-                            <span className="text-sm">Không tìm thấy hồ sơ</span>
+                            <span className="text-sm">Không tìm thấy hồ sơ lệnh chờ</span>
                           </div>
                         </td>
                       </tr>
                     ) : (
-                      openOrders.map((ord) => {
+                      combinedOpenOrders.map((ord) => {
                         const sideInfo = formatOrderSide(ord.side);
                         const statusInfo = formatOrderStatus(ord.status);
                         const typeLabel = formatOrderType(ord.orderType);
@@ -927,19 +1208,28 @@ export const WalletPage: React.FC = () => {
                           ? new Date(ord.createdAt).toLocaleString('vi-VN')
                           : '--';
 
+                        const isFutures = ord.marketType === 'FUTURES';
+
                         return (
-                          <tr key={ord.id} className="hover:bg-[#161616] transition-colors">
+                          <tr key={`${ord.marketType}-${ord.id}`} className="hover:bg-[#161616] transition-colors">
                             <td className="py-3 px-4 text-[#888888]">{dateStr}</td>
+                            <td className="py-3 px-4">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                                isFutures ? 'bg-amber-400/10 text-amber-400 border border-amber-400/20' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                              }`}>
+                                {isFutures ? `Futures ${ord.leverage || 10}x` : 'Spot'}
+                              </span>
+                            </td>
                             <td className="py-3 px-4 font-bold text-white">{ord.symbol}</td>
                             <td className="py-3 px-4 text-[#888888]">{typeLabel}</td>
                             <td className="py-3 px-4 font-bold">
                               <span className={sideInfo.color}>{sideInfo.label}</span>
                             </td>
                             <td className="py-3 px-4 text-right text-white font-bold">
-                              ${ord.pricePerUnit ? ord.pricePerUnit.toLocaleString('en-US') : 'Thị trường'}
+                              ${ord.price ? Number(ord.price).toLocaleString('en-US') : 'Thị trường'}
                             </td>
                             <td className="py-3 px-4 text-right text-white">
-                              {ord.totalQuantity.toFixed(4)}
+                              {Number(ord.quantity).toFixed(4)}
                             </td>
                             <td className="py-3 px-4 text-center">
                               <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${statusInfo.bg} ${statusInfo.color}`}>
@@ -948,12 +1238,18 @@ export const WalletPage: React.FC = () => {
                             </td>
                             <td className="py-3 px-4 text-center">
                               <button
-                                onClick={() => cancelOrder(ord.id)}
-                                disabled={cancellingOrderId === ord.id}
+                                onClick={() => {
+                                  if (isFutures) {
+                                    handleCancelFuturesOrder(ord.id);
+                                  } else {
+                                    cancelOrder(ord.id);
+                                  }
+                                }}
+                                disabled={cancellingOrderId === ord.id || cancellingFuturesId === ord.id}
                                 className="px-2.5 py-1 rounded bg-[#222222] hover:bg-[#ff5b5b] text-[#cccccc] hover:text-white font-semibold transition-all disabled:opacity-50 inline-flex items-center space-x-1 text-[11px]"
                               >
                                 <Trash2 className="w-3 h-3" />
-                                <span>{cancellingOrderId === ord.id ? '...' : 'Hủy'}</span>
+                                <span>{cancellingOrderId === ord.id || cancellingFuturesId === ord.id ? '...' : 'Hủy'}</span>
                               </button>
                             </td>
                           </tr>
@@ -965,34 +1261,36 @@ export const WalletPage: React.FC = () => {
               </div>
             )}
 
+            {/* Content Display: 2. LỊCH SỬ LỆNH */}
             {orderSubTab === 'history' && (
               <div className="overflow-x-auto">
                 <table className="w-full text-left font-mono">
                   <thead>
                     <tr className="text-[#666666] text-[11px] border-b border-[#1e1e1e] bg-[#161616]">
                       <th className="py-3 px-4">Thời gian</th>
+                      <th className="py-3 px-4">Thị trường</th>
                       <th className="py-3 px-4">Cặp Coin</th>
                       <th className="py-3 px-4">Loại</th>
                       <th className="py-3 px-4">Chiều</th>
-                      <th className="py-3 px-4 text-right">Giá Khớp TB</th>
+                      <th className="py-3 px-4 text-right">Giá Khớp TB / Đặt</th>
                       <th className="py-3 px-4 text-right">Số Lượng</th>
                       <th className="py-3 px-4 text-center">Trạng Thái</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#1e1e1e] text-xs">
-                    {historyOrders.length === 0 ? (
+                    {combinedHistoryOrders.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="py-16 text-center text-[#555555] font-sans">
+                        <td colSpan={8} className="py-16 text-center text-[#555555] font-sans">
                           <div className="flex flex-col items-center justify-center space-y-2">
                             <div className="w-12 h-12 rounded-full bg-[#1a1a1a] border border-[#262626] flex items-center justify-center text-[#666666]">
                               <HelpCircle className="w-6 h-6" />
                             </div>
-                            <span className="text-sm">Không tìm thấy hồ sơ</span>
+                            <span className="text-sm">Không tìm thấy hồ sơ lịch sử lệnh</span>
                           </div>
                         </td>
                       </tr>
                     ) : (
-                      historyOrders.map((ord) => {
+                      combinedHistoryOrders.map((ord) => {
                         const sideInfo = formatOrderSide(ord.side);
                         const statusInfo = formatOrderStatus(ord.status);
                         const typeLabel = formatOrderType(ord.orderType);
@@ -1000,19 +1298,28 @@ export const WalletPage: React.FC = () => {
                           ? new Date(ord.createdAt).toLocaleString('vi-VN')
                           : '--';
 
+                        const isFutures = ord.marketType === 'FUTURES';
+
                         return (
-                          <tr key={ord.id} className="hover:bg-[#161616] transition-colors">
+                          <tr key={`${ord.marketType}-${ord.id}`} className="hover:bg-[#161616] transition-colors">
                             <td className="py-3 px-4 text-[#888888]">{dateStr}</td>
+                            <td className="py-3 px-4">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                                isFutures ? 'bg-amber-400/10 text-amber-400 border border-amber-400/20' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                              }`}>
+                                {isFutures ? `Futures ${ord.leverage || 10}x` : 'Spot'}
+                              </span>
+                            </td>
                             <td className="py-3 px-4 font-bold text-white">{ord.symbol}</td>
                             <td className="py-3 px-4 text-[#888888]">{typeLabel}</td>
                             <td className="py-3 px-4 font-bold">
                               <span className={sideInfo.color}>{sideInfo.label}</span>
                             </td>
                             <td className="py-3 px-4 text-right text-white font-bold">
-                              ${ord.avgPrice ? ord.avgPrice.toLocaleString('en-US') : '-'}
+                              ${ord.price ? Number(ord.price).toLocaleString('en-US') : '-'}
                             </td>
                             <td className="py-3 px-4 text-right text-white">
-                              {ord.totalQuantity.toFixed(4)}
+                              {Number(ord.quantity).toFixed(4)}
                             </td>
                             <td className="py-3 px-4 text-center">
                               <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${statusInfo.bg} ${statusInfo.color}`}>
@@ -1028,14 +1335,181 @@ export const WalletPage: React.FC = () => {
               </div>
             )}
 
-            {(orderSubTab === 'posHistory' || orderSubTab === 'trades') && (
-              <div className="py-16 text-center text-[#555555] font-sans">
-                <div className="flex flex-col items-center justify-center space-y-2">
-                  <div className="w-12 h-12 rounded-full bg-[#1a1a1a] border border-[#262626] flex items-center justify-center text-[#666666]">
-                    <HelpCircle className="w-6 h-6" />
-                  </div>
-                  <span className="text-sm">Không tìm thấy hồ sơ</span>
-                </div>
+            {/* Content Display: 3. LỊCH SỬ VỊ THẾ */}
+            {orderSubTab === 'posHistory' && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left font-mono">
+                  <thead>
+                    <tr className="text-[#666666] text-[11px] border-b border-[#1e1e1e] bg-[#161616]">
+                      <th className="py-3 px-4">Thời gian</th>
+                      <th className="py-3 px-4">Cặp Coin</th>
+                      <th className="py-3 px-4">Hành động</th>
+                      <th className="py-3 px-4 text-center">Đòn bẩy</th>
+                      <th className="py-3 px-4 text-right">Giá vào TB</th>
+                      <th className="py-3 px-4 text-right">Lãi / Lỗ Đã Thực Hiện</th>
+                      <th className="py-3 px-4 text-right">Phí</th>
+                      <th className="py-3 px-4 text-center">Nguồn</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#1e1e1e] text-xs">
+                    {positionHistory.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="py-16 text-center text-[#555555] font-sans">
+                          <div className="flex flex-col items-center justify-center space-y-2">
+                            <div className="w-12 h-12 rounded-full bg-[#1a1a1a] border border-[#262626] flex items-center justify-center text-[#666666]">
+                              <HelpCircle className="w-6 h-6" />
+                            </div>
+                            <span className="text-sm">Không tìm thấy hồ sơ lịch sử vị thế</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      positionHistory.map((ph) => {
+                        const pnl = Number(ph.realizedPnl || 0);
+                        const isPositive = pnl >= 0;
+                        const dateStr = ph.createdAt
+                          ? new Date(ph.createdAt).toLocaleString('vi-VN')
+                          : '--';
+
+                        const isLiquidation = ph.stage === 'liquidation' || ph.parentType?.toLowerCase() === 'liquidation';
+
+                        return (
+                          <tr key={ph.id} className="hover:bg-[#161616] transition-colors">
+                            <td className="py-3 px-4 text-[#888888]">{dateStr}</td>
+                            <td className="py-3 px-4 font-bold text-white">{ph.symbol}</td>
+                            <td className="py-3 px-4">
+                              {isLiquidation ? (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-red-500/15 text-[#ff5b5b] border border-red-500/30">
+                                  Thanh lý tự động
+                                </span>
+                              ) : ph.stage === 'tpsl_exit' ? (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/30">
+                                  Chốt lời / Dừng lỗ
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/15 text-[#00c076] border border-emerald-500/30">
+                                  Đóng vị thế
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-center text-[#cccccc]">
+                              {ph.leverage ? `${ph.leverage}x` : '--'}
+                            </td>
+                            <td className="py-3 px-4 text-right text-white">
+                              ${ph.avgPrice ? Number(ph.avgPrice).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '--'}
+                            </td>
+                            <td className="py-3 px-4 text-right font-bold">
+                              <span className={isPositive ? 'text-[#00c076]' : 'text-[#ff5b5b]'}>
+                                {isPositive ? '+' : ''}{pnl.toFixed(2)} USDT
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-right text-[#888888]">
+                              {ph.feeAmount ? `${Number(ph.feeAmount).toFixed(4)} USDT` : '--'}
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                                  ph.source === 'system'
+                                    ? 'bg-orange-500/10 text-orange-400'
+                                    : 'bg-zinc-700/30 text-zinc-300'
+                                }`}
+                              >
+                                {ph.source === 'system' ? 'Hệ thống' : 'Người dùng'}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Content Display: 4. LỊCH SỬ GIAO DỊCH */}
+            {orderSubTab === 'trades' && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left font-mono">
+                  <thead>
+                    <tr className="text-[#666666] text-[11px] border-b border-[#1e1e1e] bg-[#161616]">
+                      <th className="py-3 px-4">Thời gian</th>
+                      <th className="py-3 px-4">Thị trường</th>
+                      <th className="py-3 px-4">Cặp Coin</th>
+                      <th className="py-3 px-4">Chiều</th>
+                      <th className="py-3 px-4 text-right">Giá Khớp</th>
+                      <th className="py-3 px-4 text-right">Số Lượng</th>
+                      <th className="py-3 px-4 text-right">Tổng Giá Trị</th>
+                      <th className="py-3 px-4 text-right">Phí GD</th>
+                      <th className="py-3 px-4 text-center">Vai Trò / Nguồn</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#1e1e1e] text-xs">
+                    {combinedTrades.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="py-16 text-center text-[#555555] font-sans">
+                          <div className="flex flex-col items-center justify-center space-y-2">
+                            <div className="w-12 h-12 rounded-full bg-[#1a1a1a] border border-[#262626] flex items-center justify-center text-[#666666]">
+                              <HelpCircle className="w-6 h-6" />
+                            </div>
+                            <span className="text-sm">Không tìm thấy hồ sơ lịch sử giao dịch</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      combinedTrades.map((tr) => {
+                        const isBuy = tr.side?.toUpperCase() === 'BUY';
+                        const dateStr = tr.timestamp
+                          ? new Date(tr.timestamp).toLocaleString('vi-VN')
+                          : '--';
+                        const isFutures = tr.marketType === 'FUTURES';
+
+                        return (
+                          <tr key={tr.id} className="hover:bg-[#161616] transition-colors">
+                            <td className="py-3 px-4 text-[#888888]">{dateStr}</td>
+                            <td className="py-3 px-4">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                                isFutures ? 'bg-amber-400/10 text-amber-400 border border-amber-400/20' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                              }`}>
+                                {isFutures ? 'Futures' : 'Spot'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 font-bold text-white">{tr.symbol}</td>
+                            <td className="py-3 px-4 font-bold">
+                              <span className={isBuy ? 'text-[#00c076]' : 'text-[#ff5b5b]'}>
+                                {isBuy ? (isFutures ? 'MUA / LONG' : 'MUA (BUY)') : (isFutures ? 'BÁN / SHORT' : 'BÁN (SELL)')}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-right text-white font-bold">
+                              ${Number(tr.price).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            </td>
+                            <td className="py-3 px-4 text-right text-white">
+                              {Number(tr.quantity).toFixed(4)}
+                            </td>
+                            <td className="py-3 px-4 text-right text-white">
+                              ${Number(tr.notional).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            </td>
+                            <td className="py-3 px-4 text-right text-[#888888]">
+                              {tr.feeAmount !== undefined ? `${Number(tr.feeAmount).toFixed(4)} USDT` : '--'}
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                                  tr.role === 'Maker'
+                                    ? 'bg-blue-500/10 text-blue-400'
+                                    : tr.role === 'Taker'
+                                    ? 'bg-purple-500/10 text-purple-400'
+                                    : 'bg-zinc-800 text-[#cccccc]'
+                                }`}
+                              >
+                                {tr.role}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>

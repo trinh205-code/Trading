@@ -33,6 +33,7 @@ public class FuturesPositionServiceImpl implements FuturesPositionService {
 
     private final FuturesPositionRepository futuresPositionRepository;
     private final FuturesWalletRepository futuresWalletRepository;
+    private final com.slayer.binacet.repository.FuturesTransactionRepository futuresTransactionRepository;
     private final FuturesPositionMapper futuresPositionMapper;
     private final FuturesOrderService futuresOrderService;
     private final FuturesPnLService pnlService;
@@ -187,6 +188,29 @@ public class FuturesPositionServiceImpl implements FuturesPositionService {
         return mapAndCalculatePnL(updatedPosition);
     }
 
+
+    @Override
+    public org.springframework.data.domain.Page<com.slayer.binacet.dto.response.FuturesPositionHistoryResponse> getPositionHistory(
+            String symbol, org.springframework.data.domain.Pageable pageable) {
+        String userId = getCurrentUser().getId();
+        String querySymbol = (symbol != null && !symbol.isBlank()) ? symbol.toUpperCase() : null;
+        org.springframework.data.domain.Page<com.slayer.binacet.entity.FuturesTransaction> transactions =
+                futuresTransactionRepository.findUserTransactions(userId, querySymbol, pageable);
+
+        return transactions.map(t -> com.slayer.binacet.dto.response.FuturesPositionHistoryResponse.builder()
+                .id(t.getId())
+                .symbol(t.getSymbol())
+                .stage(t.getStage())
+                .realizedPnl(t.getAmount())
+                .feeAmount(t.getFeeAmount())
+                .leverage(t.getPosition() != null ? t.getPosition().getLeverage() : null)
+                .avgPrice(t.getPosition() != null ? t.getPosition().getAvgPrice() : null)
+                .source(t.getSource())
+                .parentType(t.getParentType())
+                .parentId(t.getParentId())
+                .createdAt(t.getCreatedAt())
+                .build());
+    }
 
     private FuturesPositionResponse mapAndCalculatePnL(FuturesPosition position) {
         FuturesPositionResponse response = futuresPositionMapper.toResponse(position);

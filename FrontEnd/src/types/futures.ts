@@ -121,3 +121,17 @@ export interface FuturesTradeResponse {
   isMaker: boolean;
   timestamp: string;
 }
+
+export interface FuturesPositionHistoryResponse {
+  id: string;
+  symbol: string;
+  stage: string;           // 'default' | 'exit' | 'tpsl_exit' | 'liquidation'
+  realizedPnl: number;     // lãi / lỗ USDT
+  feeAmount?: number;
+  leverage?: number;
+  avgPrice?: number;
+  source?: string;         // 'user' | 'system'
+  parentType?: string;
+  parentId?: string;
+  createdAt: string;
+}

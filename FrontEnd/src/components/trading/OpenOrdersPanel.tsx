@@ -6,8 +6,15 @@ import { useMarketStore } from '../../stores/marketStore';
 import { useWalletStore } from '../../stores/walletStore';
 import { Trash2, RefreshCw, SlidersHorizontal, AlertTriangle } from 'lucide-react';
 import axiosClient from '../../api/axiosClient';
-import { FuturesPositionResponse, FuturesOrderResponse, FuturesTradeResponse } from '../../types/futures';
+import {
+  FuturesPositionResponse,
+  FuturesOrderResponse,
+  FuturesTradeResponse,
+  FuturesPositionHistoryResponse,
+} from '../../types/futures';
+import { TradeResponse } from '../../types/order';
 import { futuresApi } from '../../api/futuresApi';
+import { orderApi } from '../../api/orderApi';
 import { ClosePositionModal } from './ClosePositionModal';
 import { formatOrderStatus, formatOrderType, formatOrderSide } from '../../utils/orderFormatters';
 
@@ -36,6 +43,15 @@ export const OpenOrdersPanel: React.FC<OpenOrdersPanelProps> = ({ symbol, isFutu
   // Futures Trades (Lịch sử khớp lệnh)
   const [futuresTrades, setFuturesTrades] = useState<FuturesTradeResponse[]>([]);
   const [loadingTrades, setLoadingTrades] = useState<boolean>(false);
+
+  // Spot Trades (Lịch sử khớp lệnh Spot)
+  const [spotTrades, setSpotTrades] = useState<TradeResponse[]>([]);
+  const [loadingSpotTrades, setLoadingSpotTrades] = useState<boolean>(false);
+
+  // Lịch sử vị thế (Position History)
+  const [positionHistory, setPositionHistory] = useState<FuturesPositionHistoryResponse[]>([]);
+  const [loadingPosHistory, setLoadingPosHistory] = useState<boolean>(false);
+
   const [tradeSymbolFilter, setTradeSymbolFilter] = useState<'CURRENT' | 'ALL'>('CURRENT');
 
   // Modal đóng vị thế từng phần / thanh lý
@@ -59,7 +75,8 @@ export const OpenOrdersPanel: React.FC<OpenOrdersPanelProps> = ({ symbol, isFutu
   const fetchFuturesOrders = async () => {
     setLoadingFuturesOrders(true);
     try {
-      const res: any = await futuresApi.getOrders(symbol.toUpperCase(), undefined, 0, 50);
+      const sym = tradeSymbolFilter === 'CURRENT' ? symbol.toUpperCase() : undefined;
+      const res: any = await futuresApi.getOrders(sym, undefined, 0, 50);
       if (res.success && res.data) {
         const orderList = Array.isArray(res.data) ? res.data : (res.data.content || []);
         setFuturesOrders(orderList);
@@ -87,6 +104,38 @@ export const OpenOrdersPanel: React.FC<OpenOrdersPanelProps> = ({ symbol, isFutu
     }
   };
 
+  const fetchPositionHistory = async () => {
+    setLoadingPosHistory(true);
+    try {
+      const sym = tradeSymbolFilter === 'CURRENT' ? symbol.toUpperCase() : undefined;
+      const res: any = await futuresApi.getPositionHistory(sym, 0, 50);
+      if (res.success && res.data) {
+        const historyList = Array.isArray(res.data) ? res.data : (res.data.content || []);
+        setPositionHistory(historyList);
+      }
+    } catch {
+      // silent fallback
+    } finally {
+      setLoadingPosHistory(false);
+    }
+  };
+
+  const fetchSpotTrades = async () => {
+    setLoadingSpotTrades(true);
+    try {
+      const sym = tradeSymbolFilter === 'CURRENT' ? symbol.toUpperCase() : undefined;
+      const res: any = await orderApi.getMyTrades(sym, 0, 50);
+      if (res.success && res.data) {
+        const list = Array.isArray(res.data) ? res.data : (res.data.content || []);
+        setSpotTrades(list);
+      }
+    } catch {
+      // silent fallback
+    } finally {
+      setLoadingSpotTrades(false);
+    }
+  };
+
   const handleCancelFuturesOrder = async (orderId: string) => {
     setCancellingFuturesOrderId(orderId);
     try {
@@ -105,6 +154,7 @@ export const OpenOrdersPanel: React.FC<OpenOrdersPanelProps> = ({ symbol, isFutu
       await futuresApi.closePosition(positionId);
       await fetchPositions();
       await fetchFuturesTrades();
+      await fetchPositionHistory();
       fetchFuturesWallets();
     } catch (err: any) {
       alert(err.message || 'Không thể đóng vị thế');
@@ -121,6 +171,7 @@ export const OpenOrdersPanel: React.FC<OpenOrdersPanelProps> = ({ symbol, isFutu
       );
       await fetchPositions();
       await fetchFuturesTrades();
+      await fetchPositionHistory();
       fetchFuturesWallets();
     } catch (err: any) {
       alert(err.message || 'Lỗi khi đóng một số vị thế');
@@ -134,9 +185,13 @@ export const OpenOrdersPanel: React.FC<OpenOrdersPanelProps> = ({ symbol, isFutu
       fetchFuturesOrders();
       fetchPositions();
       fetchFuturesTrades();
+      fetchPositionHistory();
       fetchFuturesWallets();
     } else {
-      fetchMyOrders(symbol);
+      const sym = tradeSymbolFilter === 'CURRENT' ? symbol : undefined;
+      fetchMyOrders(sym);
+      fetchSpotTrades();
+      fetchWallets();
     }
   };
 
@@ -146,8 +201,11 @@ export const OpenOrdersPanel: React.FC<OpenOrdersPanelProps> = ({ symbol, isFutu
         fetchFuturesOrders();
         fetchPositions();
         fetchFuturesTrades();
+        fetchPositionHistory();
       } else {
-        fetchMyOrders(symbol);
+        const sym = tradeSymbolFilter === 'CURRENT' ? symbol : undefined;
+        fetchMyOrders(sym);
+        fetchSpotTrades();
       }
 
       const interval = setInterval(() => {
@@ -157,8 +215,15 @@ export const OpenOrdersPanel: React.FC<OpenOrdersPanelProps> = ({ symbol, isFutu
           if (activeTab === 'trades') {
             fetchFuturesTrades();
           }
+          if (activeTab === 'posHistory') {
+            fetchPositionHistory();
+          }
         } else {
-          fetchMyOrders(symbol);
+          const sym = tradeSymbolFilter === 'CURRENT' ? symbol : undefined;
+          fetchMyOrders(sym);
+          if (activeTab === 'trades') {
+            fetchSpotTrades();
+          }
         }
       }, 3000);
 
@@ -167,6 +232,7 @@ export const OpenOrdersPanel: React.FC<OpenOrdersPanelProps> = ({ symbol, isFutu
           fetchFuturesOrders();
           fetchPositions();
           fetchFuturesTrades();
+          fetchPositionHistory();
         }
       };
       window.addEventListener('futures_order_placed', handleOrderPlaced);
@@ -296,34 +362,37 @@ export const OpenOrdersPanel: React.FC<OpenOrdersPanelProps> = ({ symbol, isFutu
             Lịch sử lệnh ({historyCount})
           </button>
 
-          {isFutures && (
-            <button
-              onClick={() => setActiveTab('trades')}
-              className={`py-2.5 font-bold transition-colors border-b-2 text-xs flex items-center space-x-1.5 ${
-                activeTab === 'trades'
-                  ? 'text-white border-white'
-                  : 'text-[#777777] border-transparent hover:text-white'
-              }`}
-            >
-              <span>Lịch sử khớp lệnh</span>
-              {futuresTrades.length > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full bg-[#222222] text-[10px] text-[#cccccc]">
-                  {futuresTrades.length}
-                </span>
-              )}
-            </button>
-          )}
+          <button
+            onClick={() => setActiveTab('trades')}
+            className={`py-2.5 font-bold transition-colors border-b-2 text-xs flex items-center space-x-1.5 ${
+              activeTab === 'trades'
+                ? 'text-white border-white'
+                : 'text-[#777777] border-transparent hover:text-white'
+            }`}
+          >
+            <span>Lịch sử khớp lệnh</span>
+            {(isFutures ? futuresTrades.length : spotTrades.length) > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full bg-[#222222] text-[10px] text-[#cccccc]">
+                {isFutures ? futuresTrades.length : spotTrades.length}
+              </span>
+            )}
+          </button>
 
           {isFutures && (
             <button
               onClick={() => setActiveTab('posHistory')}
-              className={`py-2.5 font-bold transition-colors border-b-2 text-xs ${
+              className={`py-2.5 font-bold transition-colors border-b-2 text-xs flex items-center space-x-1.5 ${
                 activeTab === 'posHistory'
                   ? 'text-white border-white'
                   : 'text-[#777777] border-transparent hover:text-white'
               }`}
             >
-              Lịch sử vị thế
+              <span>Lịch sử vị thế</span>
+              {positionHistory.length > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-[#222222] text-[10px] text-[#cccccc]">
+                  {positionHistory.length}
+                </span>
+              )}
             </button>
           )}
 
@@ -769,8 +838,8 @@ export const OpenOrdersPanel: React.FC<OpenOrdersPanelProps> = ({ symbol, isFutu
           </table>
         )}
 
-        {/* TAB 4: FUTURES TRADES (LỊCH SỬ KHỚP LỆNH) */}
-        {isFutures && activeTab === 'trades' && (
+        {/* TAB 4: TRADES (LỊCH SỬ KHỚP LỆNH SPOT & FUTURES) */}
+        {activeTab === 'trades' && (
           <table className="w-full text-left">
             <thead>
               <tr className="text-[#666666] text-[10px] uppercase border-b border-[#1e1e1e] bg-[#121212]">
@@ -781,18 +850,18 @@ export const OpenOrdersPanel: React.FC<OpenOrdersPanelProps> = ({ symbol, isFutu
                 <th className="py-2.5 px-4 text-right">Số Lượng</th>
                 <th className="py-2.5 px-4 text-right">Giá Trị Khớp</th>
                 <th className="py-2.5 px-4 text-right">Phí GD</th>
-                <th className="py-2.5 px-4 text-center">Vai Trò</th>
+                <th className="py-2.5 px-4 text-center">Vai Trò / Nguồn</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#1e1e1e] text-[11px]">
-              {futuresTrades.length === 0 ? (
+              {(isFutures ? futuresTrades : spotTrades).length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-8 text-center text-[#555555] font-sans">
-                    Chưa có lịch sử khớp lệnh Futures nào.
+                    {isFutures ? 'Chưa có lịch sử khớp lệnh Futures nào.' : 'Chưa có lịch sử khớp lệnh Spot nào.'}
                   </td>
                 </tr>
               ) : (
-                futuresTrades.map((tr) => {
+                (isFutures ? futuresTrades : spotTrades).map((tr: any) => {
                   const isBuy = tr.side?.toUpperCase() === 'BUY';
                   const dateStr = tr.timestamp
                     ? new Date(tr.timestamp).toLocaleString('vi-VN', {
@@ -803,7 +872,7 @@ export const OpenOrdersPanel: React.FC<OpenOrdersPanelProps> = ({ symbol, isFutu
                         month: '2-digit',
                       })
                     : '--:--';
-                  const notional = tr.notional ?? (Number(tr.price || 0) * Number(tr.quantity || 0));
+                  const notional = tr.notional ?? tr.totalQuote ?? (Number(tr.price || 0) * Number(tr.quantity || 0));
 
                   return (
                     <tr key={tr.id} className="hover:bg-[#1a1a1a] transition-colors">
@@ -812,7 +881,7 @@ export const OpenOrdersPanel: React.FC<OpenOrdersPanelProps> = ({ symbol, isFutu
                         onClick={() => {
                           if (tr.symbol) {
                             setSelectedSymbol(tr.symbol);
-                            navigate(`/futures/${tr.symbol}`);
+                            navigate(isFutures ? `/futures/${tr.symbol}` : `/spot/${tr.symbol}`);
                           }
                         }}
                         className="py-2.5 px-4 font-bold text-white cursor-pointer hover:text-amber-400 hover:underline transition-colors"
@@ -822,7 +891,7 @@ export const OpenOrdersPanel: React.FC<OpenOrdersPanelProps> = ({ symbol, isFutu
                       </td>
                       <td className="py-2.5 px-4 font-bold">
                         <span className={isBuy ? 'text-[#00c076]' : 'text-[#ff5b5b]'}>
-                          {isBuy ? 'MUA / LONG' : 'BÁN / SHORT'}
+                          {isBuy ? (isFutures ? 'MUA / LONG' : 'MUA (BUY)') : (isFutures ? 'BÁN / SHORT' : 'BÁN (SELL)')}
                         </span>
                       </td>
                       <td className="py-2.5 px-4 text-right text-white font-mono">
@@ -838,15 +907,21 @@ export const OpenOrdersPanel: React.FC<OpenOrdersPanelProps> = ({ symbol, isFutu
                         {tr.feeAmount !== undefined ? `${Number(tr.feeAmount).toFixed(4)} USDT` : '--'}
                       </td>
                       <td className="py-2.5 px-4 text-center">
-                        <span
-                          className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                            tr.isMaker
-                              ? 'bg-blue-500/10 text-blue-400'
-                              : 'bg-purple-500/10 text-purple-400'
-                          }`}
-                        >
-                          {tr.isMaker ? 'Maker' : 'Taker'}
-                        </span>
+                        {tr.isMaker !== undefined ? (
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                              tr.isMaker
+                                ? 'bg-blue-500/10 text-blue-400'
+                                : 'bg-purple-500/10 text-purple-400'
+                            }`}
+                          >
+                            {tr.isMaker ? 'Maker' : 'Taker'}
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-zinc-800 text-[#cccccc]">
+                            {tr.executionVenue || 'Khớp nội bộ'}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   );
@@ -858,28 +933,104 @@ export const OpenOrdersPanel: React.FC<OpenOrdersPanelProps> = ({ symbol, isFutu
 
         {/* TAB 5: POS HISTORY (LỊCH SỬ VỊ THẾ) */}
         {isFutures && activeTab === 'posHistory' && (
-          <div className="p-6 text-center text-[#777777] font-sans text-xs space-y-2">
-            <div>
-              Lịch sử các lần đóng vị thế và thanh lý tự động đều được lưu vết đầy đủ trong tab{' '}
-              <button
-                onClick={() => setActiveTab('trades')}
-                className="text-[#00c076] font-bold underline hover:text-emerald-400"
-              >
-                Lịch sử khớp lệnh
-              </button>{' '}
-              và{' '}
-              <button
-                onClick={() => setActiveTab('history')}
-                className="text-amber-400 font-bold underline hover:text-amber-300"
-              >
-                Lịch sử lệnh
-              </button>
-              .
-            </div>
-            <p className="text-[11px] text-[#555555]">
-              Khi hệ thống kích hoạt thanh lý tự động, lệnh thị trường với tiền tố 'liquidate' sẽ đóng vị thế và ghi nhận chi tiết tại Lịch sử khớp lệnh.
-            </p>
-          </div>
+          <table className="w-full text-left">
+            <thead>
+              <tr className="text-[#666666] text-[10px] uppercase border-b border-[#1e1e1e] bg-[#121212]">
+                <th className="py-2.5 px-4">Thời Gian</th>
+                <th className="py-2.5 px-4">Cặp Giao Dịch</th>
+                <th className="py-2.5 px-4">Loại Hành Động</th>
+                <th className="py-2.5 px-4 text-center">Đòn Bẩy</th>
+                <th className="py-2.5 px-4 text-right">Giá Vào TB</th>
+                <th className="py-2.5 px-4 text-right">Lãi / Lỗ Đã Thực Hiện</th>
+                <th className="py-2.5 px-4 text-right">Phí</th>
+                <th className="py-2.5 px-4 text-center">Nguồn</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#1e1e1e] text-[11px]">
+              {positionHistory.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-8 text-center text-[#555555] font-sans">
+                    Chưa có lịch sử đóng hoặc thanh lý vị thế nào.
+                  </td>
+                </tr>
+              ) : (
+                positionHistory.map((ph) => {
+                  const pnl = Number(ph.realizedPnl || 0);
+                  const isPositive = pnl >= 0;
+                  const dateStr = ph.createdAt
+                    ? new Date(ph.createdAt).toLocaleString('vi-VN', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                      })
+                    : '--:--';
+
+                  const isLiquidation = ph.stage === 'liquidation' || ph.parentType?.toLowerCase() === 'liquidation';
+
+                  return (
+                    <tr key={ph.id} className="hover:bg-[#1a1a1a] transition-colors">
+                      <td className="py-2.5 px-4 text-[#888888]">{dateStr}</td>
+                      <td
+                        onClick={() => {
+                          if (ph.symbol) {
+                            setSelectedSymbol(ph.symbol);
+                            navigate(`/futures/${ph.symbol}`);
+                          }
+                        }}
+                        className="py-2.5 px-4 font-bold text-white cursor-pointer hover:text-amber-400 hover:underline transition-colors"
+                        title={`Chuyển sang biểu đồ ${ph.symbol}`}
+                      >
+                        {ph.symbol}
+                      </td>
+                      <td className="py-2.5 px-4">
+                        {isLiquidation ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-red-500/15 text-[#ff5b5b] border border-red-500/30">
+                            Thanh lý tự động
+                          </span>
+                        ) : ph.stage === 'tpsl_exit' ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/30">
+                            Chốt lời / Dừng lỗ
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/15 text-[#00c076] border border-emerald-500/30">
+                            Đóng vị thế
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-4 text-center text-[#cccccc]">
+                        {ph.leverage ? `${ph.leverage}x` : '--'}
+                      </td>
+                      <td className="py-2.5 px-4 text-right text-white font-mono">
+                        ${ph.avgPrice ? Number(ph.avgPrice).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '--'}
+                      </td>
+                      <td className="py-2.5 px-4 text-right font-mono font-bold">
+                        <span className={isPositive ? 'text-[#00c076]' : 'text-[#ff5b5b]'}>
+                          {isPositive ? '+' : ''}{pnl.toFixed(2)} USDT
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-4 text-right text-[#888888] font-mono">
+                        {ph.feeAmount ? `${Number(ph.feeAmount).toFixed(4)} USDT` : '--'}
+                      </td>
+                      <td className="py-2.5 px-4 text-center">
+                        <span
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                            ph.source === 'system'
+                              ? 'bg-orange-500/10 text-orange-400'
+                              : 'bg-zinc-700/30 text-zinc-300'
+                          }`}
+                        >
+                          {ph.source === 'system' ? 'Hệ thống' : 'Người dùng'}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         )}
 
         {/* TAB 6: ASSETS (TÀI SẢN) */}

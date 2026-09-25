@@ -55,9 +55,18 @@ public class FuturesPositionController {
         FuturesPositionResponse response = futuresPositionService.closePartialPosition(request);
 
         return ResponseEntity.ok(ApiResponse.success(response, "Đã gửi lệnh đóng vị thế từng phần thành công"));
-
-
     }
 
+    @GetMapping("/history")
+    public ResponseEntity<ApiResponse<org.springframework.data.domain.Page<com.slayer.binacet.dto.response.FuturesPositionHistoryResponse>>> getPositionHistory(
+            @RequestParam(required = false) String symbol,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
 
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
+        org.springframework.data.domain.Page<com.slayer.binacet.dto.response.FuturesPositionHistoryResponse> history =
+                futuresPositionService.getPositionHistory(symbol, pageable);
+
+        return ResponseEntity.ok(ApiResponse.success(history, "Lấy lịch sử vị thế thành công"));
+    }
 }

@@ -35,3 +35,16 @@ export interface OrderResponse {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface TradeResponse {
+  id: number;
+  orderId: string;
+  symbol: string;
+  side: OrderSide;
+  price: number;
+  quantity: number;
+  totalQuote?: number;
+  feeAmount: number;
+  executionVenue?: string;
+  timestamp: string;
+}
