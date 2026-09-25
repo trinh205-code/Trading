@@ -12,8 +12,6 @@ import java.util.List;
 public interface WalletBalanceService {
     List<WalletResponse> getMyWallets();
 
-    
-
     DepositResponse deposit(DepositRequest request);
 
     WalletResponse withdraw(WithdrawRequest request);
@@ -23,9 +21,4 @@ public interface WalletBalanceService {
     void lockBalance(String userId, String currency, BigDecimal amount);
 
     void unlockBalance(String userId, String currency, BigDecimal amount);
-
-    org.springframework.data.domain.Page<com.slayer.binacet.dto.response.FundingTransactionResponse> getFundingHistory(
-            String asset, String type, java.time.Instant startDate, java.time.Instant endDate, org.springframework.data.domain.Pageable pageable);
-
-    void recordFundingTransaction(String userId, String asset, String type, BigDecimal amount, BigDecimal balanceAfter, String note);
 }

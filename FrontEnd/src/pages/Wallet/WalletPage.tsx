@@ -20,7 +20,6 @@ import axiosClient from '../../api/axiosClient';
 import { formatOrderStatus, formatOrderType, formatOrderSide } from '../../utils/orderFormatters';
 import { FuturesPositionResponse } from '../../types/futures';
 import { WalletProfitChart } from '../../components/wallet/WalletProfitChart';
-import { FundingHistoryTable, FundingSubTab } from '../../components/wallet/FundingHistoryTable';
 
 type MainTab = 'overview' | 'funding' | 'trading' | 'orderCenter';
 
@@ -65,7 +64,7 @@ export const WalletPage: React.FC = () => {
   const [transferLoading, setTransferLoading] = useState(false);
   const [transferMsg, setTransferMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const [orderSubTab, setOrderSubTab] = useState<FundingSubTab>('open');
+  const [orderSubTab, setOrderSubTab] = useState<'open' | 'history' | 'posHistory' | 'trades'>('open');
   const [orderSymbolFilter, setOrderSymbolFilter] = useState('');
   const [orderTypeFilter, setOrderTypeFilter] = useState('ALL');
 
@@ -310,15 +309,7 @@ export const WalletPage: React.FC = () => {
                   <div className="flex items-center justify-between mb-4">
                     <span className="font-bold text-white text-xs">Lịch sử Ví Funding gần đây</span>
                     <button
-                      onClick={() => {
-                        const el = document.getElementById('funding-history-section');
-                        if (el) {
-                          el.scrollIntoView({ behavior: 'smooth' });
-                        } else {
-                          setOrderSubTab('fundingHistory');
-                          handleTabChange('orderCenter');
-                        }
-                      }}
+                      onClick={() => handleTabChange('funding')}
                       className="text-[11px] text-[#777777] hover:text-white flex items-center cursor-pointer transition-colors"
                     >
                       <span>Xem thêm</span>
@@ -451,30 +442,6 @@ export const WalletPage: React.FC = () => {
                   </tbody>
                 </table>
               </div>
-            </div>
-
-            {/* Mục: Lịch sử ví Funding / Ví Spot (theo đúng mẫu ảnh) */}
-            <div id="funding-history-section" className="mt-8">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h2 className="text-base font-bold text-white flex items-center space-x-2">
-                    <span>Lịch sử ví Funding / Ví Spot</span>
-                  </h2>
-                  <p className="text-[11px] text-[#777777]">
-                    Theo dõi tất cả biến động nạp, rút, P2P, airdrop và luân chuyển tài sản
-                  </p>
-                </div>
-              </div>
-              <FundingHistoryTable
-                currentTab="fundingHistory"
-                onTabChange={(tab) => {
-                  if (tab !== 'fundingHistory') {
-                    setOrderSubTab(tab);
-                    handleTabChange('orderCenter');
-                  }
-                }}
-                openOrdersCount={openOrders.length}
-              />
             </div>
           </div>
         )}
@@ -642,20 +609,6 @@ export const WalletPage: React.FC = () => {
                   </tbody>
                 </table>
               </div>
-            </div>
-
-            {/* Bảng Lịch sử ví Funding */}
-            <div className="mt-8">
-              <FundingHistoryTable
-                currentTab="fundingHistory"
-                onTabChange={(tab) => {
-                  if (tab !== 'fundingHistory') {
-                    setOrderSubTab(tab);
-                    handleTabChange('orderCenter');
-                  }
-                }}
-                openOrdersCount={openOrders.length}
-              />
             </div>
           </div>
         )}
@@ -856,15 +809,8 @@ export const WalletPage: React.FC = () => {
         {/* TAB 4: TRUNG TÂM LỆNH (SCREENSHOT 4) */}
         {/* ========================================================================= */}
         {activeTab === 'orderCenter' && (
-          orderSubTab === 'fundingHistory' ? (
-            <FundingHistoryTable
-              currentTab={orderSubTab}
-              onTabChange={setOrderSubTab}
-              openOrdersCount={openOrders.length}
-            />
-          ) : (
           <div className="bg-[#121212] border border-[#1e1e1e] rounded-2xl p-6">
-            {/* Sub-tabs: Lệnh chờ khớp | Lịch sử lệnh | Lịch sử vị thế | Lịch sử giao dịch | Lịch sử ví funding */}
+            {/* Sub-tabs: Lệnh chờ khớp | Lịch sử lệnh | Lịch sử vị thế | Lịch sử giao dịch */}
             <div className="flex items-center space-x-6 border-b border-[#1e1e1e] pb-3 mb-5 overflow-x-auto text-xs">
               <button
                 onClick={() => setOrderSubTab('open')}
@@ -897,14 +843,6 @@ export const WalletPage: React.FC = () => {
                 }`}
               >
                 Lịch sử giao dịch
-              </button>
-              <button
-                onClick={() => setOrderSubTab('fundingHistory')}
-                className={`font-bold transition-colors pb-1 border-b-2 ${
-                  orderSubTab === 'fundingHistory' ? 'text-white border-white' : 'text-[#777777] border-transparent hover:text-white'
-                }`}
-              >
-                Lịch sử ví funding
               </button>
             </div>
 
@@ -1101,7 +1039,6 @@ export const WalletPage: React.FC = () => {
               </div>
             )}
           </div>
-          )
         )}
       </div>
 

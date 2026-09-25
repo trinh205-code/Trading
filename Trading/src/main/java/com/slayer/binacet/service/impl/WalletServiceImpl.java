@@ -31,7 +31,6 @@ public class WalletServiceImpl implements WalletBalanceService {
     private final WalletBalanceRepository walletBalanceRepository;
     private final UserRepository userRepository;
     private final WalletMapper walletMapper;
-    private final com.slayer.binacet.repository.FundingTransactionRepository fundingTransactionRepository;
     private SecurityUtil securityUtil;
 
 
@@ -64,9 +63,6 @@ public class WalletServiceImpl implements WalletBalanceService {
         wallet.setBalance(wallet.getBalance().add(rewardAmount));
 
         WalletBalance savedWallet = walletBalanceRepository.save(wallet);
-
-        recordFundingTransaction(user.getId(), targetCurrency, "Airdrop và phần thưởng",
-                rewardAmount, savedWallet.getBalance(), "Đã nhận USDT");
 
         return walletMapper.toResponse(savedWallet);
     }
@@ -167,11 +163,6 @@ public class WalletServiceImpl implements WalletBalanceService {
 
         walletBalanceRepository.save(senderWallet);
         walletBalanceRepository.save(receiverWallet);
-
-        recordFundingTransaction(sender.getId(), request.getCurrency(), "P2P",
-                request.getAmount().negate(), senderWallet.getBalance(), "Đặt lệnh " + request.getCurrency());
-        recordFundingTransaction(receiver.getId(), request.getCurrency(), "P2P",
-                request.getAmount(), receiverWallet.getBalance(), "Đã nhận " + request.getCurrency());
     }
 
     @Override
@@ -244,93 +235,5 @@ public class WalletServiceImpl implements WalletBalanceService {
         wallet.setBalance(wallet.getBalance().add(amount));
 
         walletBalanceRepository.save(wallet);
-    }
-
-    @Override
-    @Transactional
-    public void recordFundingTransaction(String userId, String asset, String type, BigDecimal amount, BigDecimal balanceAfter, String note) {
-        com.slayer.binacet.entity.FundingTransaction tx = com.slayer.binacet.entity.FundingTransaction.builder()
-                .userId(userId)
-                .asset(asset.toUpperCase())
-                .type(type)
-                .amount(amount)
-                .balanceAfter(balanceAfter != null ? balanceAfter : BigDecimal.ZERO)
-                .note(note)
-                .createdAt(java.time.Instant.now())
-                .build();
-        fundingTransactionRepository.save(tx);
-    }
-
-    @Override
-    public org.springframework.data.domain.Page<com.slayer.binacet.dto.response.FundingTransactionResponse> getFundingHistory(
-            String asset, String type, java.time.Instant startDate, java.time.Instant endDate, org.springframework.data.domain.Pageable pageable) {
-        User user = getCurrentUser();
-
-        // Kiểm tra xem user đã có giao dịch nào chưa, nếu chưa có thì khởi tạo sẵn 3 giao dịch mẫu giống ảnh
-        List<com.slayer.binacet.entity.FundingTransaction> userTxs = fundingTransactionRepository.findByUserIdOrderByCreatedAtDesc(user.getId());
-        if (userTxs.isEmpty()) {
-            initSampleFundingTransactions(user.getId());
-        }
-
-        String filterAsset = (asset != null && !asset.isBlank() && !asset.equalsIgnoreCase("ALL") && !asset.equalsIgnoreCase("Tất cả"))
-                ? asset.trim().toUpperCase() : null;
-        String filterType = (type != null && !type.isBlank() && !type.equalsIgnoreCase("ALL") && !type.equalsIgnoreCase("Tất cả"))
-                ? type.trim() : null;
-
-        org.springframework.data.domain.Page<com.slayer.binacet.entity.FundingTransaction> pageResult = fundingTransactionRepository.findFilteredHistory(
-                user.getId(), filterAsset, filterType, startDate, endDate, pageable);
-
-        return pageResult.map(tx -> com.slayer.binacet.dto.response.FundingTransactionResponse.builder()
-                .id(tx.getId())
-                .createdAt(tx.getCreatedAt())
-                .asset(tx.getAsset())
-                .type(tx.getType())
-                .amount(tx.getAmount())
-                .balanceAfter(tx.getBalanceAfter())
-                .note(tx.getNote())
-                .build());
-    }
-
-    private void initSampleFundingTransactions(String userId) {
-        java.time.Instant now = java.time.Instant.now();
-        BigDecimal currentBal = walletBalanceRepository.findByUserIdAndCurrency(userId, "USDT")
-                .map(com.slayer.binacet.entity.WalletBalance::getBalance)
-                .orElse(new BigDecimal("5.00000000"));
-
-        BigDecimal b1 = currentBal;
-        BigDecimal b2 = currentBal.add(new BigDecimal("20.00000000"));
-        BigDecimal b3 = b2.subtract(new BigDecimal("20.00000000")).max(BigDecimal.ZERO);
-
-        com.slayer.binacet.entity.FundingTransaction tx1 = com.slayer.binacet.entity.FundingTransaction.builder()
-                .userId(userId)
-                .asset("USDT")
-                .type("P2P")
-                .amount(new BigDecimal("-20.00000000"))
-                .balanceAfter(b1)
-                .note("Đặt lệnh USDT")
-                .createdAt(now.minusSeconds(3600 * 3))
-                .build();
-
-        com.slayer.binacet.entity.FundingTransaction tx2 = com.slayer.binacet.entity.FundingTransaction.builder()
-                .userId(userId)
-                .asset("USDT")
-                .type("Airdrop và phần thưởng")
-                .amount(new BigDecimal("20.00000000"))
-                .balanceAfter(b2)
-                .note("Đã nhận USDT")
-                .createdAt(now.minusSeconds(3600 * 24 * 3))
-                .build();
-
-        com.slayer.binacet.entity.FundingTransaction tx3 = com.slayer.binacet.entity.FundingTransaction.builder()
-                .userId(userId)
-                .asset("USDT")
-                .type("Airdrop và phần thưởng")
-                .amount(new BigDecimal("5.00000000"))
-                .balanceAfter(b3)
-                .note("Đã nhận USDT")
-                .createdAt(now.minusSeconds(3600 * 24 * 7))
-                .build();
-
-        fundingTransactionRepository.saveAll(List.of(tx1, tx2, tx3));
     }
 }

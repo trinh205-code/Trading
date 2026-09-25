@@ -37,7 +37,6 @@ public class FuturesWalletServiceImpl implements FuturesWalletService {
 
     private final FuturesWalletMapper futuresWalletMapper;
     private final MarketRepository marketRepository;
-    private final com.slayer.binacet.repository.FundingTransactionRepository fundingTransactionRepository;
 
     @Override
     public List<FuturesWalletResponse> getMyFuturesWallet() {
@@ -75,16 +74,6 @@ public class FuturesWalletServiceImpl implements FuturesWalletService {
         walletBalanceRepository.save(spot);
         futuresWalletRepository.save(futuresWallet);
 
-        fundingTransactionRepository.save(com.slayer.binacet.entity.FundingTransaction.builder()
-                .userId(currentUser.getId())
-                .asset(currency.toUpperCase())
-                .type("Chuyển ví")
-                .amount(amount.negate())
-                .balanceAfter(subtractSpot)
-                .note("Chuyển sang Ví Futures")
-                .createdAt(java.time.Instant.now())
-                .build());
-
         return futuresWalletMapper.toResponse(futuresWallet);
     }
 
@@ -109,16 +98,6 @@ public class FuturesWalletServiceImpl implements FuturesWalletService {
         spot.setBalance(addSpot);
         walletBalanceRepository.save(spot);
         futuresWalletRepository.save(futuresWallet);
-
-        fundingTransactionRepository.save(com.slayer.binacet.entity.FundingTransaction.builder()
-                .userId(userId)
-                .asset(currency.toUpperCase())
-                .type("Chuyển ví")
-                .amount(amount)
-                .balanceAfter(addSpot)
-                .note("Rút về Ví Spot")
-                .createdAt(java.time.Instant.now())
-                .build());
 
         return futuresWalletMapper.toResponse(futuresWallet);
     }
