@@ -24,7 +24,8 @@ import java.time.Instant;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class FuturesMatchingServiceImpl  {
+public class
+FuturesMatchingServiceImpl  {
 
     private final FuturesOrderRepository orderRepository;
     private final FuturesPositionRepository positionRepository;
@@ -34,12 +35,17 @@ public class FuturesMatchingServiceImpl  {
     private final MarketPriceCache marketPriceCache;
 
 
+
+
     @Transactional
     public void matchFuturesOrder(String orderId) {
         FuturesOrder order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy Futures Order: " + orderId));
 
         if (order.getStatus() != FuturesOrderStatus.OPEN && order.getStatus() != FuturesOrderStatus.PARTIALLY_FILLED) {
+            return;
+        }
+        if (order.getRemainingQuantity() == null || order.getRemainingQuantity().compareTo(BigDecimal.ZERO) <= 0) {
             return;
         }
 
@@ -56,7 +62,9 @@ public class FuturesMatchingServiceImpl  {
         if (!shouldFill) return;
 
         BigDecimal fillQty = order.getRemainingQuantity();
-        BigDecimal fillPrice = markPrice;
+        if (fillQty == null || fillQty.compareTo(BigDecimal.ZERO) <= 0) return;
+
+        BigDecimal fillPrice = markPrice.abs();
         String userId = order.getUser().getId();
         String currency = order.getMarginCurrencyShortName();
 
@@ -80,7 +88,8 @@ public class FuturesMatchingServiceImpl  {
         positionRepository.save(position);
 
         order.setRemainingQuantity(BigDecimal.ZERO);
-        order.setExecutedQuantity(fillQty);
+        BigDecimal prevExecuted = order.getExecutedQuantity() != null ? order.getExecutedQuantity() : BigDecimal.ZERO;
+        order.setExecutedQuantity(prevExecuted.add(fillQty));
         order.setAvgPrice(fillPrice);
         order.setStatus(FuturesOrderStatus.FILLED);
         orderRepository.save(order);
@@ -102,11 +111,18 @@ public class FuturesMatchingServiceImpl  {
         FuturesOrder sellOrder = orderRepository.findById(bestAsk.getOrderId()).orElse(null);
 
         if (buyOrder == null || sellOrder == null) return;
+        if (buyOrder.getStatus() != FuturesOrderStatus.OPEN && buyOrder.getStatus() != FuturesOrderStatus.PARTIALLY_FILLED) return;
+        if (sellOrder.getStatus() != FuturesOrderStatus.OPEN && sellOrder.getStatus() != FuturesOrderStatus.PARTIALLY_FILLED) return;
+        if (buyOrder.getRemainingQuantity() == null || buyOrder.getRemainingQuantity().compareTo(BigDecimal.ZERO) <= 0) return;
+        if (sellOrder.getRemainingQuantity() == null || sellOrder.getRemainingQuantity().compareTo(BigDecimal.ZERO) <= 0) return;
+
+        BigDecimal actualMatchQty = matchQuantity.min(buyOrder.getRemainingQuantity()).min(sellOrder.getRemainingQuantity());
+        if (actualMatchQty.compareTo(BigDecimal.ZERO) <= 0) return;
 
         boolean isBuyMaker = bestBid.getTimestamp().isBefore(bestAsk.getTimestamp());
 
-        processLimitFill(buyOrder, matchQuantity, matchPrice, isBuyMaker);
-        processLimitFill(sellOrder, matchQuantity, matchPrice, !isBuyMaker);
+        processLimitFill(buyOrder, actualMatchQty, matchPrice, isBuyMaker);
+        processLimitFill(sellOrder, actualMatchQty, matchPrice, !isBuyMaker);
     }
 
     /**
@@ -155,6 +171,10 @@ public class FuturesMatchingServiceImpl  {
     private FillResult applyFillToPosition(FuturesPosition position, OrderSide side,
                                            BigDecimal fillQty, BigDecimal fillPrice, BigDecimal orderLeverage) {
 
+        if (fillQty == null || fillQty.compareTo(BigDecimal.ZERO) <= 0 || fillPrice == null || fillPrice.compareTo(BigDecimal.ZERO) <= 0) {
+            return new FillResult(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, position.getAvgPrice(), position.getLeverage());
+        }
+
         BigDecimal existingQty = position.getActivePos() != null ? position.getActivePos() : BigDecimal.ZERO;
         BigDecimal signedDelta = side == OrderSide.BUY ? fillQty : fillQty.negate();
 
@@ -169,16 +189,15 @@ public class FuturesMatchingServiceImpl  {
         // TRƯỜNG HỢP 1: Mở mới hoặc cộng thêm cùng chiều
         // Không giải phóng margin, không có PnL thực nhận, không khóa thêm ở đây
         // (việc khóa margin ban đầu cho case này đã xảy ra ở FuturesOrderServiceImpl.createFuturesOrder,
-        //  không phải ở đây — hàm này chỉ tính lại avgPrice/margin MỚI của position để lưu, không lock ví).
         // ============================================================
         if (sameDirection) {
             BigDecimal newQty = existingQty.add(signedDelta);
 
             BigDecimal oldNotional = position.getAvgPrice() != null
-                    ? position.getAvgPrice().multiply(existingQty.abs())
+                    ? position.getAvgPrice().abs().multiply(existingQty.abs())
                     : BigDecimal.ZERO;
-            BigDecimal newNotional = fillPrice.multiply(fillQty);
-            BigDecimal newAvgPrice = oldNotional.add(newNotional).divide(newQty.abs(), 18, RoundingMode.HALF_UP);
+            BigDecimal newNotional = fillPrice.abs().multiply(fillQty);
+            BigDecimal newAvgPrice = oldNotional.add(newNotional).divide(newQty.abs(), 18, RoundingMode.HALF_UP).abs();
 
             BigDecimal totalNotional = newQty.abs().multiply(newAvgPrice);
             BigDecimal newTotalMargin = totalNotional.divide(effectiveLeverage, 18, RoundingMode.HALF_UP);
@@ -228,7 +247,7 @@ public class FuturesMatchingServiceImpl  {
             BigDecimal newMargin = fillPrice.multiply(remainder).divide(effectiveLeverage, 18, RoundingMode.HALF_UP);
 
             position.setActivePos(newSignedQty);
-            position.setAvgPrice(fillPrice);
+            position.setAvgPrice(fillPrice.abs());
             position.setLeverage(effectiveLeverage);
             position.setLockedUserMargin(newMargin);
 
@@ -255,6 +274,12 @@ public class FuturesMatchingServiceImpl  {
         String symbol = order.getInstrument().getSymbol();
         String currency = order.getMarginCurrencyShortName();
 
+        BigDecimal remainingQty = order.getRemainingQuantity() != null ? order.getRemainingQuantity() : BigDecimal.ZERO;
+        BigDecimal actualFill = fillQty.min(remainingQty);
+        if (actualFill.compareTo(BigDecimal.ZERO) <= 0) return;
+
+        BigDecimal safeFillPrice = fillPrice.abs();
+
         FuturesPosition position = positionRepository.findForUpdate(userId, symbol)
                 .orElseGet(() -> positionRepository.save(FuturesPosition.builder()
                         .user(order.getUser())
@@ -266,25 +291,26 @@ public class FuturesMatchingServiceImpl  {
                         .marginCurrencyShortName(currency)
                         .build()));
 
-        FillResult fillResult = applyFillToPosition(position, order.getSide(), fillQty, fillPrice, order.getLeverage());
+        FillResult fillResult = applyFillToPosition(position, order.getSide(), actualFill, safeFillPrice, order.getLeverage());
         settleFill(userId, currency, position, symbol, fillResult, "FuturesOrder", order.getId());
 
         BigDecimal feeRate = isMaker ? new BigDecimal("0.0002") : new BigDecimal("0.0004");
-        BigDecimal fee = fillQty.multiply(fillPrice).multiply(feeRate);
+        BigDecimal fee = actualFill.multiply(safeFillPrice).multiply(feeRate);
         futuresWalletService.deductFee(userId, currency, fee);
 
         positionRepository.save(position);
 
-        BigDecimal remaining = order.getRemainingQuantity().subtract(fillQty);
+        BigDecimal remaining = remainingQty.subtract(actualFill).max(BigDecimal.ZERO);
         order.setRemainingQuantity(remaining);
-        order.setExecutedQuantity(order.getTotalQuantity().subtract(remaining));
+        BigDecimal prevExecuted = order.getExecutedQuantity() != null ? order.getExecutedQuantity() : BigDecimal.ZERO;
+        order.setExecutedQuantity(prevExecuted.add(actualFill));
         order.setStatus(remaining.compareTo(BigDecimal.ZERO) == 0 ? FuturesOrderStatus.FILLED : FuturesOrderStatus.PARTIALLY_FILLED);
-        order.setAvgPrice(fillPrice);
+        order.setAvgPrice(safeFillPrice);
         orderRepository.save(order);
 
         tradeRepository.save(FuturesTrade.builder()
                 .userId(userId).order(order).symbol(symbol)
-                .price(fillPrice).quantity(fillQty).feeAmount(fee)
+                .price(safeFillPrice).quantity(actualFill).feeAmount(fee)
                 .side(order.getSide()).isMaker(isMaker).timestamp(Instant.now())
                 .build());
     }
@@ -305,14 +331,6 @@ public class FuturesMatchingServiceImpl  {
                 .createdAt(Instant.now())
                 .build());
     }
-
-    public static User getCurrentUser() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new RuntimeException("Người dùng chưa đăng nhập");
-        }
-
-        return (User) authentication.getPrincipal();
-    }
+    
 
 }

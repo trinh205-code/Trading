@@ -77,6 +77,16 @@ public class FuturesLiquidationService {
                 ? position.getLockedUserMargin()
                 : BigDecimal.ZERO;
 
+        // BẢO VỆ VÍ (ISOLATED MARGIN): Trong ký quỹ cô lập, mức lỗ thanh lý tối đa
+        // mà người dùng phải chịu không bao giờ được vượt quá số tiền ký quỹ đã khóa (lockedUserMargin).
+        // Mọi khoản thâm hụt (deficit) vượt quá mức này sẽ do Quỹ bảo hiểm (Insurance Fund) chi trả.
+        BigDecimal maxLoss = marginToRelease.negate();
+        if (realizedPnl.compareTo(maxLoss) < 0) {
+            log.warn("⚠️ Khoản lỗ thanh lý {} vượt quá ký quỹ {} của vị thế {}. Giới hạn lại ở mức ký quỹ tối đa.",
+                    realizedPnl, marginToRelease, position.getId());
+            realizedPnl = maxLoss;
+        }
+
         if (marginToRelease.compareTo(BigDecimal.ZERO) > 0) {
             futuresWalletService.releaseMargin(userId, currency, marginToRelease);
         }
@@ -138,12 +148,16 @@ public class FuturesLiquidationService {
     }
 
     private void recordLiquidationTransaction(FuturesPosition position, String symbol, BigDecimal amount) {
+        BigDecimal entryPrice = (position != null && position.getAvgPrice() != null)
+                ? position.getAvgPrice().abs()
+                : BigDecimal.ZERO;
+
         transactionRepository.save(FuturesTransaction.builder()
                 .position(position)
                 .symbol(symbol)
                 .stage("liquidation")
                 .amount(amount)
-                .entryPrice(position != null ? position.getAvgPrice() : null)
+                .entryPrice(entryPrice)
                 .leverage(position != null ? position.getLeverage() : null)
                 .source("system")
                 .parentType("Liquidation")
