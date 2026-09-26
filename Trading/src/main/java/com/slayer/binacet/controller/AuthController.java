@@ -23,8 +23,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/auth")
 public class AuthController {
     private final AuthService authService;
-    private final UserServiceImpl userService;
-
 
 
     @PostMapping("/login")
@@ -39,11 +37,12 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success("Đăng xuất thành công"));
     }
 
-    @PostMapping
-    public ResponseEntity<Object> createUser(@RequestBody @Valid RegisterRequest request) {
+    @PostMapping({"", "/register"})
+    public ResponseEntity<Object> register(@Valid @RequestBody RegisterRequest request) {
         UserResponse response = authService.register(request);
-        return  ResponseEntity.ok(ApiResponse.success(response, "Tạo người dùng mới thành công"));
+        return ResponseEntity.ok(ApiResponse.success(response, "Đăng ký tài khoản thành công"));
     }
+
 
     @PostMapping("/refresh")
     public ResponseEntity<?> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {

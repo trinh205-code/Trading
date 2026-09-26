@@ -9,8 +9,7 @@ export const authApi = {
   },
 
   register: async (data: RegisterRequest): Promise<ApiResponse<UserResponse>> => {
-    // Backend registers via POST /api/auth
-    return axiosClient.post('/auth', data);
+    return axiosClient.post('/auth/register', data);
   },
 
   logout: async (refreshToken: string): Promise<ApiResponse<void>> => {
