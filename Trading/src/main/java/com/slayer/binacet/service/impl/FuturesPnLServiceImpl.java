@@ -15,9 +15,9 @@ public class FuturesPnLServiceImpl implements FuturesPnLService {
         BigDecimal avgPrice = position.getAvgPrice();
 
         if (qty == null || qty.compareTo(BigDecimal.ZERO) == 0) return BigDecimal.ZERO;
-        if (avgPrice == null || markPrice == null) return BigDecimal.ZERO;
+        if (avgPrice == null || avgPrice.compareTo(BigDecimal.ZERO) <= 0 || markPrice == null) return BigDecimal.ZERO;
 
-        return markPrice.subtract(avgPrice).multiply(qty);
+        return markPrice.subtract(avgPrice.abs()).multiply(qty);
     }
 
     @Override
@@ -37,6 +37,9 @@ public class FuturesPnLServiceImpl implements FuturesPnLService {
         if (qty == null || qty.compareTo(BigDecimal.ZERO) == 0) return null;
 
         BigDecimal avgPrice = position.getAvgPrice();
+        if (avgPrice == null || avgPrice.compareTo(BigDecimal.ZERO) <= 0) return null;
+        avgPrice = avgPrice.abs();
+
         BigDecimal margin = position.getLockedUserMargin() != null ? position.getLockedUserMargin() : BigDecimal.ZERO;
         BigDecimal absQty = qty.abs();
 
@@ -46,8 +49,10 @@ public class FuturesPnLServiceImpl implements FuturesPnLService {
         // Khoảng đệm giá còn lại trước khi ký quỹ chạm mức tối thiểu
         BigDecimal buffer = margin.subtract(maintenanceMargin).divide(absQty, 18, RoundingMode.HALF_UP);
 
-        return qty.signum() > 0
+        BigDecimal liqPrice = qty.signum() > 0
                 ? avgPrice.subtract(buffer)   // LONG: giá GIẢM tới đây thì bị thanh lý
                 : avgPrice.add(buffer);       // SHORT: giá TĂNG tới đây thì bị thanh lý
+
+        return liqPrice != null ? liqPrice.max(BigDecimal.ZERO) : null;
     }
 }
