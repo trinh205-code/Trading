@@ -73,9 +73,9 @@ export const WalletProfitChart: React.FC<WalletProfitChartProps> = ({
       return data.chartPoints;
     }
     const days = period === '1D' ? 1 : period === '7D' ? 7 : period === '180D' ? 180 : period === '1Y' ? 365 : 30;
-    const base = currentGrandTotal > 0 ? currentGrandTotal : 14.34;
+    const base = currentGrandTotal;
     const count = period === '1D' ? 6 : Math.min(days, 25);
-    const mock: PnlChartPoint[] = [];
+    const points: PnlChartPoint[] = [];
     const today = new Date();
 
     for (let i = count - 1; i >= 0; i--) {
@@ -89,19 +89,16 @@ export const WalletProfitChart: React.FC<WalletProfitChartProps> = ({
         ? `${d.getHours().toString().padStart(2, '0')}:00`
         : `${d.getDate().toString().padStart(2, '0')}-${(d.getMonth() + 1).toString().padStart(2, '0')}`;
       
-      const ratio = 0.88 + ((count - 1 - i) / (count - 1 || 1)) * 0.12;
-      const val = base * ratio;
-      const pnl = val - base * 0.88;
-      mock.push({
+      points.push({
         timestamp: d.toISOString(),
         dateLabel: label,
-        assetValue: Number(val.toFixed(2)),
-        dailyPnl: Number((pnl / Math.max(1, count - i)).toFixed(2)),
-        dailyPnlPercent: Number((((val - base * 0.88) / (base * 0.88 || 1)) * 100).toFixed(2)),
-        cumulativePnl: Number(pnl.toFixed(2)),
+        assetValue: Number(base.toFixed(2)),
+        dailyPnl: 0,
+        dailyPnlPercent: 0,
+        cumulativePnl: 0,
       });
     }
-    return mock;
+    return points;
   }, [data, period, currentGrandTotal]);
 
   // Overall metrics calculation

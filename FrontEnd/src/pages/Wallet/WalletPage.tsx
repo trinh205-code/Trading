@@ -115,6 +115,23 @@ export const WalletPage: React.FC = () => {
     } finally {
       setLoadingPositions(false);
     }
+
+    try {
+      const [fTradeRes, sTradeRes]: any = await Promise.all([
+        futuresApi.getTrades(undefined, 0, 5).catch(() => ({ success: false })),
+        orderApi.getMyTrades(undefined, 0, 5).catch(() => ({ success: false })),
+      ]);
+      if (fTradeRes.success && fTradeRes.data) {
+        const list = Array.isArray(fTradeRes.data) ? fTradeRes.data : (fTradeRes.data.content || []);
+        setFuturesTrades(list);
+      }
+      if (sTradeRes.success && sTradeRes.data) {
+        const list = Array.isArray(sTradeRes.data) ? sTradeRes.data : (sTradeRes.data.content || []);
+        setSpotTrades(list);
+      }
+    } catch {
+      // ignore
+    }
   };
 
   const fetchOrderCenterData = async () => {
@@ -580,29 +597,27 @@ export const WalletPage: React.FC = () => {
                     </button>
                   </div>
 
-                  <div className="divide-y divide-[#1e1e1e] space-y-3 font-mono">
-                    <div className="pt-2 flex items-center justify-between">
-                      <div>
-                        <div className="text-white font-bold text-xs">Nạp USDT (Faucet)</div>
-                        <div className="text-[10px] text-[#666666]">Gần đây</div>
-                      </div>
-                      <span className="text-[#00c076] font-bold">+10,000 USDT</span>
+                  {spotTrades.length === 0 && futuresTrades.length === 0 ? (
+                    <div className="py-8 text-center text-[#555555] text-xs font-sans">
+                      Chưa có lịch sử giao dịch gần đây
                     </div>
-                    <div className="pt-3 flex items-center justify-between">
-                      <div>
-                        <div className="text-white font-bold text-xs">Chuyển sang Ví Futures</div>
-                        <div className="text-[10px] text-[#666666]">Futures Transfer</div>
-                      </div>
-                      <span className="text-[#ff5b5b] font-bold">-500 USDT</span>
+                  ) : (
+                    <div className="divide-y divide-[#1e1e1e] space-y-3 font-mono">
+                      {spotTrades.slice(0, 3).map((st) => (
+                        <div key={st.id} className="pt-2 flex items-center justify-between">
+                          <div>
+                            <div className="text-white font-bold text-xs">{st.side === 'BUY' ? 'Khớp mua' : 'Khớp bán'} {st.symbol}</div>
+                            <div className="text-[10px] text-[#666666]">
+                              {st.createdAt ? new Date(st.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Vừa xong'}
+                            </div>
+                          </div>
+                          <span className={`font-bold ${st.side === 'BUY' ? 'text-[#00c076]' : 'text-[#ff5b5b]'}`}>
+                            {st.side === 'BUY' ? '+' : '-'}{st.quantity} {st.symbol?.replace('USDT', '')}
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                    <div className="pt-3 flex items-center justify-between">
-                      <div>
-                        <div className="text-white font-bold text-xs">Đã nhận USDT</div>
-                        <div className="text-[10px] text-[#666666]">Hệ thống thưởng</div>
-                      </div>
-                      <span className="text-[#00c076] font-bold">+50 USDT</span>
-                    </div>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -770,29 +785,27 @@ export const WalletPage: React.FC = () => {
                   <span className="font-bold text-white text-xs">Lịch sử Ví Spot gần đây</span>
                   <span className="text-[11px] text-[#777777] cursor-pointer hover:text-white">Xem thêm &gt;</span>
                 </div>
-                <div className="divide-y divide-[#1e1e1e] space-y-3 font-mono">
-                  <div className="pt-2 flex items-center justify-between">
-                    <div>
-                      <div className="text-white font-bold text-xs">Đặt lệnh USDT</div>
-                      <div className="text-[10px] text-[#666666]">12:12 CH 15 thg 9, 2026</div>
-                    </div>
-                    <span className="text-[#ff5b5b] font-bold">-20 USDT</span>
+                {spotTrades.length === 0 ? (
+                  <div className="py-8 text-center text-[#555555] text-xs font-sans">
+                    Chưa có lịch sử giao dịch Spot
                   </div>
-                  <div className="pt-3 flex items-center justify-between">
-                    <div>
-                      <div className="text-white font-bold text-xs">Đã nhận USDT</div>
-                      <div className="text-[10px] text-[#666666]">09:07 SA 15 thg 9, 2026</div>
-                    </div>
-                    <span className="text-[#00c076] font-bold">20 USDT</span>
+                ) : (
+                  <div className="divide-y divide-[#1e1e1e] space-y-3 font-mono">
+                    {spotTrades.slice(0, 3).map((st) => (
+                      <div key={st.id} className="pt-2 flex items-center justify-between">
+                        <div>
+                          <div className="text-white font-bold text-xs">{st.side === 'BUY' ? 'Khớp mua' : 'Khớp bán'} {st.symbol}</div>
+                          <div className="text-[10px] text-[#666666]">
+                            {st.createdAt ? new Date(st.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Vừa xong'}
+                          </div>
+                        </div>
+                        <span className={`font-bold ${st.side === 'BUY' ? 'text-[#00c076]' : 'text-[#ff5b5b]'}`}>
+                          {st.side === 'BUY' ? '+' : '-'}{st.quantity} {st.symbol?.replace('USDT', '')}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                  <div className="pt-3 flex items-center justify-between">
-                    <div>
-                      <div className="text-white font-bold text-xs">Đã nhận USDT</div>
-                      <div className="text-[10px] text-[#666666]">09:12 SA 8 thg 9, 2026</div>
-                    </div>
-                    <span className="text-[#00c076] font-bold">5 USDT</span>
-                  </div>
-                </div>
+                )}
               </div>
             </div>
 
@@ -952,22 +965,27 @@ export const WalletPage: React.FC = () => {
                   <span className="font-bold text-white text-xs">Giao dịch gần đây</span>
                   <span className="text-[11px] text-[#777777] cursor-pointer hover:text-white">Xem thêm &gt;</span>
                 </div>
-                <div className="divide-y divide-[#1e1e1e] space-y-3 font-mono">
-                  <div className="pt-2 flex items-center justify-between">
-                    <div>
-                      <div className="text-white font-bold text-xs">Khớp lệnh Futures BTC</div>
-                      <div className="text-[10px] text-[#666666]">16:22:21 11/09/2026</div>
-                    </div>
-                    <span className="text-[#ff5b5b] font-bold">-0.2989 USDT</span>
+                {futuresTrades.length === 0 ? (
+                  <div className="py-8 text-center text-[#555555] text-xs font-sans">
+                    Chưa có giao dịch Futures nào
                   </div>
-                  <div className="pt-3 flex items-center justify-between">
-                    <div>
-                      <div className="text-white font-bold text-xs">Phí Funding ký quỹ</div>
-                      <div className="text-[10px] text-[#666666]">14:12:01 11/09/2026</div>
-                    </div>
-                    <span className="text-[#ff5b5b] font-bold">-0.0044 USDT</span>
+                ) : (
+                  <div className="divide-y divide-[#1e1e1e] space-y-3 font-mono">
+                    {futuresTrades.slice(0, 3).map((ft) => (
+                      <div key={ft.id} className="pt-2 flex items-center justify-between">
+                        <div>
+                          <div className="text-white font-bold text-xs">{ft.side === 'BUY' ? 'Khớp mua' : 'Khớp bán'} {ft.symbol}</div>
+                          <div className="text-[10px] text-[#666666]">
+                            {ft.createdAt ? new Date(ft.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Vừa xong'}
+                          </div>
+                        </div>
+                        <span className={`font-bold ${ft.side === 'BUY' ? 'text-[#00c076]' : 'text-[#ff5b5b]'}`}>
+                          {ft.price ? `$${Number(ft.price).toLocaleString()}` : ''}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                </div>
+                )}
               </div>
             </div>
 
