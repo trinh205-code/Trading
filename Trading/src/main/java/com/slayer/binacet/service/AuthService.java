@@ -5,11 +5,13 @@ import com.slayer.binacet.dto.request.RefreshTokenRequest;
 import com.slayer.binacet.dto.request.RegisterRequest;
 import com.slayer.binacet.dto.response.AuthResponse;
 import com.slayer.binacet.dto.response.TokenRefreshResponse;
+import com.slayer.binacet.dto.response.UserResponse;
 import com.slayer.binacet.entity.BlacklistedToken;
 import com.slayer.binacet.Enums.Role;
 import com.slayer.binacet.entity.RefreshToken;
 import com.slayer.binacet.entity.User;
 import com.slayer.binacet.exception.TokenRefreshException;
+import com.slayer.binacet.mapper.UserMapper;
 import com.slayer.binacet.repository.BlacklistedRepository;
 import com.slayer.binacet.repository.RefreshTokenRepository;
 import com.slayer.binacet.repository.UserRepository;
@@ -29,9 +31,10 @@ public class AuthService {
     private final JwtService jwtService;
     private final BlacklistedRepository blacklistedRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final UserMapper userMapper;
 
 
-    public AuthResponse register(RegisterRequest request) {
+    public UserResponse register(RegisterRequest request) {
         if(userRepository.existsByEmail(request.getEmail())) {
             throw new RuntimeException("Email đã được sử dụng!");
         }
@@ -39,19 +42,20 @@ public class AuthService {
                 .fullName(request.getFullName())
                 .email(request.getEmail())
                 .role(Role.USER)
+
                 .password(passwordEncoder.encode(request.getPassword()))
                 .build();
-
-
+        //        WalletBalance walletBalance = WalletBalance.builder()
+//                .user(newUser)
+//                .currency("USDT")
+//                .balance(BigDecimal.ZERO)
+//                .lockedBalance(BigDecimal.ZERO)
+//                .build();
+//        walletBalanceRepository.save(walletBalance);
+//
         User saveUser = userRepository.save(user);
-        String accessToken = jwtService.generateToken(saveUser.getId(), user.getEmail());
-        String refreshToken = jwtService.generateToken(saveUser.getId(), user.getEmail());
+        return userMapper.toResponse(saveUser);
 
-        return AuthResponse.builder()
-                .email(saveUser.getEmail())
-                .accessToken(accessToken)
-                .refreshToken(refreshToken)
-                .build();
     }
 
 

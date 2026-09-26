@@ -1,7 +1,7 @@
 package com.slayer.binacet.controller;
 
 
-import com.slayer.binacet.dto.request.CreateUserRequest;
+import com.slayer.binacet.dto.request.RegisterRequest;
 import com.slayer.binacet.dto.response.ApiResponse;
 import com.slayer.binacet.dto.request.LoginRequest;
 import com.slayer.binacet.dto.request.RefreshTokenRequest;
@@ -40,8 +40,8 @@ public class AuthController {
     }
 
     @PostMapping
-    public ResponseEntity<Object> createUser(@RequestBody @Valid CreateUserRequest request) {
-        UserResponse response = userService.createUser(request);
+    public ResponseEntity<Object> createUser(@RequestBody @Valid RegisterRequest request) {
+        UserResponse response = authService.register(request);
         return  ResponseEntity.ok(ApiResponse.success(response, "Tạo người dùng mới thành công"));
     }
 

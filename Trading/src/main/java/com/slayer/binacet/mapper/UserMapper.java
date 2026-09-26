@@ -1,6 +1,6 @@
 package com.slayer.binacet.mapper;
 
-import com.slayer.binacet.dto.request.CreateUserRequest;
+import com.slayer.binacet.dto.request.RegisterRequest;
 import com.slayer.binacet.dto.response.UserResponse;
 import com.slayer.binacet.entity.User;
 import org.mapstruct.Mapper;
@@ -11,7 +11,7 @@ import java.util.List;
 @Mapper(componentModel = "spring")
 public interface UserMapper {
 
-    User toEntity(CreateUserRequest request);
+    User toEntity(RegisterRequest request);
 
     UserResponse toResponse(User user);
 

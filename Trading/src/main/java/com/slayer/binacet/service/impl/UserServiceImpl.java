@@ -1,7 +1,6 @@
 package com.slayer.binacet.service.impl;
 
 import com.slayer.binacet.dto.request.ChangePasswordRequest;
-import com.slayer.binacet.dto.request.CreateUserRequest;
 import com.slayer.binacet.dto.request.UpdateUserRequest;
 import com.slayer.binacet.dto.response.UserResponse;
 import com.slayer.binacet.Enums.Role;
@@ -75,41 +74,6 @@ public class UserServiceImpl implements UserService {
                 .toList();
     }
 
-    @Override
-    public UserResponse createUser(CreateUserRequest request) {
-        if(userRepository.existsByEmail(request.getEmail())) {
-            throw new DuplicateRequestException("Email đã được sử dụng " + request.getEmail());
-        }
-
-        User newUser = User.builder()
-                .email(request.getEmail())
-                .role(Role.USER)
-                .phoneNumber(request.getPhoneNumber())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .fullName(request.getFullName())
-                .build();
-
-//        WalletBalance walletBalance = WalletBalance.builder()
-//                .user(newUser)
-//                .currency("USDT")
-//                .balance(BigDecimal.ZERO)
-//                .lockedBalance(BigDecimal.ZERO)
-//                .build();
-//        walletBalanceRepository.save(walletBalance);
-//
-//        FuturesWallet futuresWallet = FuturesWallet.builder()
-//                .user(newUser)
-//                .currencyShortName("USDT")
-//                .lockedBalance(BigDecimal.ZERO)
-//                .balance(BigDecimal.ZERO)
-//                .crossUserMargin(BigDecimal.ZERO)
-//                .crossOrderMargin(BigDecimal.ZERO)
-//                .build();
-//        futuresWalletRepository.save(futuresWallet);
-
-
-        return userMapper.toResponse(userRepository.save(newUser));
-    }
 
     @Override
     public UserResponse updateUser(String id, UpdateUserRequest request) {

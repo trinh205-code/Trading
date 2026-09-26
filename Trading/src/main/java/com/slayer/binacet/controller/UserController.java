@@ -3,7 +3,6 @@ package com.slayer.binacet.controller;
 
 import com.slayer.binacet.dto.response.ApiResponse;
 import com.slayer.binacet.dto.request.ChangePasswordRequest;
-import com.slayer.binacet.dto.request.CreateUserRequest;
 import com.slayer.binacet.dto.request.UpdateUserRequest;
 import com.slayer.binacet.dto.response.UserResponse;
 import com.slayer.binacet.service.UserService;
