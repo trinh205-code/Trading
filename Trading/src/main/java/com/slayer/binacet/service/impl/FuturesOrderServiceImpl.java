@@ -2,6 +2,7 @@ package com.slayer.binacet.service.impl;
 
 import com.slayer.binacet.Enums.FuturesOrderStatus;
 import com.slayer.binacet.Enums.FuturesOrderType;
+import com.slayer.binacet.Enums.OrderSide;
 import com.slayer.binacet.dto.event.OrderEvent;
 import com.slayer.binacet.dto.request.CreateFuturesOrderRequest;
 import com.slayer.binacet.dto.response.FuturesOrderResponse;
@@ -10,6 +11,7 @@ import com.slayer.binacet.event.FuturesOrderProducer;
 import com.slayer.binacet.mapper.FuturesOrderMapper;
 import com.slayer.binacet.repository.*;
 import com.slayer.binacet.service.FuturesOrderService;
+import com.slayer.binacet.service.FuturesPnLService;
 import com.slayer.binacet.service.FuturesWalletService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +35,8 @@ public class FuturesOrderServiceImpl implements FuturesOrderService {
     private final FuturesOrderRepository futuresOrderRepository;
     private final FuturesInstrumentRepository instrumentRepository;
     private final FuturesWalletRepository futuresWalletRepository;
+    private final FuturesPositionRepository futuresPositionRepository;
+    private final FuturesPnLService futuresPnLService;
     private final FuturesOrderMapper futuresOrderMapper;
     private final FuturesMatchingServiceImpl matchingEngineService;
     private final FuturesMarketSyncService futuresMarketSyncService;
@@ -58,11 +62,39 @@ public class FuturesOrderServiceImpl implements FuturesOrderService {
         if (request.getOrderType() == FuturesOrderType.MARKET) {
             priceToCalculate = futuresMarketSyncService.getMarkPrice(request.getSymbol());
 
-        }else {
+        } else {
             // để validate không cho đặt giá quá xa (chống fat-finger)
             priceToCalculate = request.getPrice();
             if (priceToCalculate == null || priceToCalculate.compareTo(BigDecimal.ZERO) <= 0) {
                 throw new RuntimeException("Lệnh LIMIT bắt buộc phải có giá hợp lệ");
+            }
+
+            // Kiểm tra không cho đặt lệnh LIMIT vượt qua giá thanh lý của vị thế đang mở
+            FuturesPosition existingPosition = futuresPositionRepository
+                    .findByUser_IdAndInstrument_Symbol(user.getId(), instrument.getSymbol())
+                    .orElse(null);
+
+            if (existingPosition != null && existingPosition.getActivePos() != null
+                    && existingPosition.getActivePos().compareTo(BigDecimal.ZERO) != 0) {
+
+                BigDecimal mmr = instrument.getMaintenanceMarginRate() != null
+                        ? instrument.getMaintenanceMarginRate()
+                        : new BigDecimal("0.005");
+                BigDecimal liqPrice = existingPosition.getLiquidationPrice() != null
+                        ? existingPosition.getLiquidationPrice()
+                        : futuresPnLService.calculateLiquidationPrice(existingPosition, mmr);
+
+                if (liqPrice != null && liqPrice.compareTo(BigDecimal.ZERO) > 0) {
+                    boolean isLong = existingPosition.getActivePos().signum() > 0;
+                    if (isLong && request.getSide() == OrderSide.SELL && priceToCalculate.compareTo(liqPrice) <= 0) {
+                        throw new RuntimeException("Giá đặt lệnh không thể thấp hơn hoặc bằng giá thanh lý ("
+                                + liqPrice.setScale(2, RoundingMode.HALF_UP) + ") của vị thế Long");
+                    }
+                    if (!isLong && request.getSide() == OrderSide.BUY && priceToCalculate.compareTo(liqPrice) >= 0) {
+                        throw new RuntimeException("Giá đặt lệnh không thể cao hơn hoặc bằng giá thanh lý ("
+                                + liqPrice.setScale(2, RoundingMode.HALF_UP) + ") của vị thế Short");
+                    }
+                }
             }
         }
 
