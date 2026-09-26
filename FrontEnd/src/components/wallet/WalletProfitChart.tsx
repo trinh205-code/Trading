@@ -67,38 +67,105 @@ export const WalletProfitChart: React.FC<WalletProfitChartProps> = ({
     '1Y': '1 năm',
   };
 
-  // Generate fallback points if data is empty or loading
-  const chartPoints: PnlChartPoint[] = useMemo(() => {
-    if (data?.chartPoints && data.chartPoints.length > 1) {
-      return data.chartPoints;
-    }
-    const days = period === '1D' ? 1 : period === '7D' ? 7 : period === '180D' ? 180 : period === '1Y' ? 365 : 30;
-    const base = currentGrandTotal;
-    const count = period === '1D' ? 6 : Math.min(days, 25);
+  // Generate rolling 24 hourly slots (from 23 hours ago to current hour)
+  const getRolling24Hours = (currentEquity: number): PnlChartPoint[] => {
     const points: PnlChartPoint[] = [];
-    const today = new Date();
+    const now = new Date();
+    const currentHour = now.getHours();
 
-    for (let i = count - 1; i >= 0; i--) {
-      const d = new Date(today);
-      if (period === '1D') {
-        d.setHours(d.getHours() - i * 4);
-      } else {
-        d.setDate(d.getDate() - Math.floor((i * days) / count));
-      }
-      const label = period === '1D'
-        ? `${d.getHours().toString().padStart(2, '0')}:00`
-        : `${d.getDate().toString().padStart(2, '0')}-${(d.getMonth() + 1).toString().padStart(2, '0')}`;
-      
+    for (let i = 23; i >= 0; i--) {
+      const d = new Date(now);
+      d.setHours(currentHour - i, 0, 0, 0);
+      const h = d.getHours().toString().padStart(2, '0');
+      const isCurrent = i === 0;
+
       points.push({
         timestamp: d.toISOString(),
-        dateLabel: label,
-        assetValue: Number(base.toFixed(2)),
+        dateLabel: isCurrent ? `${h}:00 (Hiện tại)` : `${h}:00`,
+        assetValue: Number(currentEquity.toFixed(2)),
         dailyPnl: 0,
         dailyPnlPercent: 0,
         cumulativePnl: 0,
       });
     }
     return points;
+  };
+
+  // Generate rolling daily slots (from days - 1 ago to today)
+  const getRollingDays = (days: number, currentEquity: number): PnlChartPoint[] => {
+    const points: PnlChartPoint[] = [];
+    const now = new Date();
+
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      d.setHours(0, 0, 0, 0);
+
+      const dateStr = `${d.getDate().toString().padStart(2, '0')}-${(d.getMonth() + 1).toString().padStart(2, '0')}`;
+      const isToday = i === 0;
+
+      points.push({
+        timestamp: d.toISOString(),
+        dateLabel: isToday ? `${dateStr} (Hôm nay)` : dateStr,
+        assetValue: Number(currentEquity.toFixed(2)),
+        dailyPnl: 0,
+        dailyPnlPercent: 0,
+        cumulativePnl: 0,
+      });
+    }
+    return points;
+  };
+
+  // Auto-shift snapshot window when clock ticks to the next hour or day
+  useEffect(() => {
+    let lastHour = new Date().getHours();
+    let lastDate = new Date().getDate();
+
+    const timer = setInterval(() => {
+      const currentNow = new Date();
+      const currentH = currentNow.getHours();
+      const currentD = currentNow.getDate();
+
+      if (period === '1D' && currentH !== lastHour) {
+        lastHour = currentH;
+        fetchAnalytics('1D');
+      } else if (period !== '1D' && currentD !== lastDate) {
+        lastDate = currentD;
+        fetchAnalytics(period);
+      }
+    }, 15000);
+
+    return () => clearInterval(timer);
+  }, [period]);
+
+  // Chart points with real-time active candle tracking
+  const chartPoints: PnlChartPoint[] = useMemo(() => {
+    let pts: PnlChartPoint[] = [];
+    if (data?.chartPoints && data.chartPoints.length > 1) {
+      pts = data.chartPoints.map((p) => ({ ...p }));
+    } else if (period === '1D') {
+      pts = getRolling24Hours(currentGrandTotal);
+    } else {
+      const days = period === '7D' ? 7 : period === '180D' ? 180 : period === '1Y' ? 365 : 30;
+      pts = getRollingDays(days, currentGrandTotal);
+    }
+
+    if (pts.length > 0) {
+      // Điểm cuối cùng là LIVE: liên tục di chuyển lên xuống theo currentGrandTotal
+      const lastIdx = pts.length - 1;
+      const startVal = pts[0].assetValue || currentGrandTotal;
+      const livePnl = currentGrandTotal - startVal;
+      const livePnlPct = startVal > 0 ? (livePnl / startVal) * 100 : 0;
+
+      pts[lastIdx] = {
+        ...pts[lastIdx],
+        assetValue: Number(currentGrandTotal.toFixed(2)),
+        dailyPnl: Number(livePnl.toFixed(2)),
+        dailyPnlPercent: Number(livePnlPct.toFixed(2)),
+        cumulativePnl: Number(livePnl.toFixed(2)),
+      };
+    }
+    return pts;
   }, [data, period, currentGrandTotal]);
 
   // Overall metrics calculation
@@ -418,6 +485,26 @@ export const WalletProfitChart: React.FC<WalletProfitChartProps> = ({
                 />
               </g>
             )}
+            {/* Live Realtime Indicator on the Last Point (di chuyển liên tục theo số dư ví) */}
+            {pointsCoords.length > 0 && !hoveredPoint && (
+              <g className="transition-all duration-300">
+                <circle
+                  cx={pointsCoords[pointsCoords.length - 1].x}
+                  cy={pointsCoords[pointsCoords.length - 1].y}
+                  r="8"
+                  fill="#00c076"
+                  className="animate-ping opacity-60"
+                />
+                <circle
+                  cx={pointsCoords[pointsCoords.length - 1].x}
+                  cy={pointsCoords[pointsCoords.length - 1].y}
+                  r="4.5"
+                  fill="#00c076"
+                  stroke="#ffffff"
+                  strokeWidth="2"
+                />
+              </g>
+            )}
           </svg>
 
           {/* Floating Hover Tooltip Popover */}
@@ -441,7 +528,7 @@ export const WalletProfitChart: React.FC<WalletProfitChartProps> = ({
                     hoveredPoint.dailyPnl >= 0 ? 'text-[#00c076]' : 'text-[#ff5b5b]'
                   }`}
                 >
-                  PnL ngày: {hoveredPoint.dailyPnl >= 0 ? '+' : ''}${hoveredPoint.dailyPnl.toFixed(2)} ({hoveredPoint.dailyPnlPercent >= 0 ? '+' : ''}{hoveredPoint.dailyPnlPercent.toFixed(2)}%)
+                  PnL: {hoveredPoint.dailyPnl >= 0 ? '+' : ''}${hoveredPoint.dailyPnl.toFixed(2)} ({hoveredPoint.dailyPnlPercent >= 0 ? '+' : ''}{hoveredPoint.dailyPnlPercent.toFixed(2)}%)
                 </div>
                 <div className="text-[#777777] text-[9px]">
                   Lũy kế: {hoveredPoint.cumulativePnl >= 0 ? '+' : ''}${hoveredPoint.cumulativePnl.toFixed(2)}
@@ -450,7 +537,7 @@ export const WalletProfitChart: React.FC<WalletProfitChartProps> = ({
             </div>
           )}
 
-          {/* Timeline X-Axis Labels (27-08, 02-09, 08-09, 14-09, 21-09) */}
+          {/* Timeline X-Axis Labels */}
           <div className="flex justify-between items-center px-4 pt-1 text-[11px] text-[#666666] font-mono">
             {chartPoints
               .filter((_, i) => {
@@ -460,7 +547,9 @@ export const WalletProfitChart: React.FC<WalletProfitChartProps> = ({
               })
               .slice(0, 6)
               .map((p, idx) => (
-                <span key={idx}>{p.dateLabel}</span>
+                <span key={idx}>
+                  {p.dateLabel.replace(' (Hiện tại)', '').replace(' (Hôm nay)', '')}
+                </span>
               ))}
           </div>
         </div>

@@ -171,81 +171,76 @@ public class WalletAnalyticsServiceImpl implements WalletAnalyticsService {
     /**
      * Tạo các mốc thời gian trong ngày (1D: 00:00 -> Hiện tại)
      */
+    /**
+     * Tạo 24 mốc thời gian rolling cho chu kỳ 1D (24 giờ gần nhất: từ giờ hiện tại - 23h đến giờ hiện tại)
+     * Ví dụ: Hiện tại 11:36 ngày 27/09 -> Rolling từ 12:00 hôm qua đến 11:00 hôm nay.
+     */
     private List<PnlChartPointDto> generateIntradayPoints(String userId, BigDecimal currentEquity) {
         List<PnlChartPointDto> points = new ArrayList<>();
-        int currentHour = LocalTime.now().getHour();
-        int step = Math.max(2, currentHour / 5);
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        java.time.LocalDateTime currentHourTime = now.truncatedTo(java.time.temporal.ChronoUnit.HOURS);
 
-        BigDecimal baseEquity = currentEquity.multiply(new BigDecimal("0.985")); // Giả định biên độ dao động nhẹ
-        BigDecimal diff = currentEquity.subtract(baseEquity);
+        BigDecimal roundedEquity = currentEquity.setScale(2, RoundingMode.HALF_UP);
 
-        int count = 0;
-        for (int h = 0; h <= currentHour; h += step) {
-            count++;
-            double progress = (double) h / Math.max(1, currentHour);
-            BigDecimal val = baseEquity.add(diff.multiply(BigDecimal.valueOf(progress))).setScale(2, RoundingMode.HALF_UP);
-            BigDecimal dailyPnl = val.subtract(baseEquity).setScale(2, RoundingMode.HALF_UP);
-            BigDecimal pct = calculatePercent(dailyPnl, baseEquity);
+        for (int i = 23; i >= 0; i--) {
+            java.time.LocalDateTime targetHour = currentHourTime.minusHours(i);
+            String timeLabel = targetHour.format(DateTimeFormatter.ofPattern("HH:00"));
+            String fullTimestamp = targetHour.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+
+            boolean isCurrentHour = (i == 0);
 
             points.add(PnlChartPointDto.builder()
-                    .timestamp(String.format("%02d:00", h))
-                    .dateLabel(String.format("%02d:00", h))
-                    .assetValue(val)
-                    .dailyPnl(dailyPnl)
-                    .dailyPnlPercent(pct)
-                    .cumulativePnl(dailyPnl)
+                    .timestamp(fullTimestamp)
+                    .dateLabel(isCurrentHour ? String.format("%s (Hiện tại)", timeLabel) : timeLabel)
+                    .assetValue(roundedEquity)
+                    .dailyPnl(BigDecimal.ZERO)
+                    .dailyPnlPercent(BigDecimal.ZERO)
+                    .cumulativePnl(BigDecimal.ZERO)
                     .build());
         }
-
-        // Đảm bảo điểm cuối cùng chính xác là giá trị hiện tại
-        points.add(PnlChartPointDto.builder()
-                .timestamp(LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm")))
-                .dateLabel("Hiện tại")
-                .assetValue(currentEquity.setScale(2, RoundingMode.HALF_UP))
-                .dailyPnl(currentEquity.subtract(baseEquity).setScale(2, RoundingMode.HALF_UP))
-                .dailyPnlPercent(calculatePercent(currentEquity.subtract(baseEquity), baseEquity))
-                .cumulativePnl(currentEquity.subtract(baseEquity).setScale(2, RoundingMode.HALF_UP))
-                .build());
 
         return points;
     }
 
     /**
-     * Tạo các điểm giả định mượt mà khi người dùng chưa có đủ snapshot trong quá khứ
+     * Tạo các mốc thời gian rolling theo ngày khi chưa có snapshot cũ
      */
     private List<PnlChartPointDto> generateFallbackPoints(String userId, int days, BigDecimal currentEquity) {
         List<PnlChartPointDto> points = new ArrayList<>();
         LocalDate today = LocalDate.now();
+        BigDecimal roundedEquity = currentEquity.setScale(2, RoundingMode.HALF_UP);
 
-        // Bước nhảy để không quá nhiều điểm (tối đa ~30 điểm cho biểu đồ mượt)
-        int step = Math.max(1, days / 30);
+        if (days <= 30) {
+            for (int i = days - 1; i >= 0; i--) {
+                LocalDate date = today.minusDays(i);
+                boolean isToday = (i == 0);
+                String label = date.format(DateTimeFormatter.ofPattern("dd-MM"));
 
-        // Vốn xuất phát giả định (biên độ dao động mô phỏng từ sàn)
-        BigDecimal startEquity = currentEquity.compareTo(BigDecimal.ZERO) > 0
-                ? currentEquity.multiply(new BigDecimal("0.85")).setScale(2, RoundingMode.HALF_UP)
-                : BigDecimal.ZERO;
+                points.add(PnlChartPointDto.builder()
+                        .timestamp(date.toString())
+                        .dateLabel(isToday ? String.format("%s (Hôm nay)", label) : label)
+                        .assetValue(roundedEquity)
+                        .dailyPnl(BigDecimal.ZERO)
+                        .dailyPnlPercent(BigDecimal.ZERO)
+                        .cumulativePnl(BigDecimal.ZERO)
+                        .build());
+            }
+        } else {
+            int step = Math.max(1, days / 25);
+            for (int i = days; i >= 0; i -= step) {
+                LocalDate date = today.minusDays(i);
+                boolean isToday = (i == 0);
+                String label = date.format(DateTimeFormatter.ofPattern("dd-MM"));
 
-        BigDecimal totalGrowth = currentEquity.subtract(startEquity);
-        int totalSteps = Math.max(1, days / step);
-        int stepIndex = 0;
-
-        for (int i = days; i >= 0; i -= step) {
-            LocalDate date = today.minusDays(i);
-            double progress = (double) stepIndex / totalSteps;
-            // Mô phỏng đường cong tài sản thực tế
-            BigDecimal val = startEquity.add(totalGrowth.multiply(BigDecimal.valueOf(progress))).setScale(2, RoundingMode.HALF_UP);
-            BigDecimal pnl = val.subtract(startEquity).setScale(2, RoundingMode.HALF_UP);
-            BigDecimal pnlPct = calculatePercent(pnl, startEquity);
-
-            points.add(PnlChartPointDto.builder()
-                    .timestamp(date.toString())
-                    .dateLabel(date.format(DateTimeFormatter.ofPattern("dd-MM")))
-                    .assetValue(val)
-                    .dailyPnl(pnl.divide(BigDecimal.valueOf(Math.max(1, stepIndex)), 2, RoundingMode.HALF_UP))
-                    .dailyPnlPercent(pnlPct)
-                    .cumulativePnl(pnl)
-                    .build());
-            stepIndex++;
+                points.add(PnlChartPointDto.builder()
+                        .timestamp(date.toString())
+                        .dateLabel(isToday ? String.format("%s (Hôm nay)", label) : label)
+                        .assetValue(roundedEquity)
+                        .dailyPnl(BigDecimal.ZERO)
+                        .dailyPnlPercent(BigDecimal.ZERO)
+                        .cumulativePnl(BigDecimal.ZERO)
+                        .build());
+            }
         }
 
         return points;

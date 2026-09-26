@@ -5,6 +5,7 @@ import com.slayer.binacet.Enums.OrderSide;
 import com.slayer.binacet.cache.MarketPriceCache;
 import com.slayer.binacet.dto.request.ClosePartialPositionRequest;
 import com.slayer.binacet.dto.request.CreateFuturesOrderRequest;
+import com.slayer.binacet.dto.response.FuturesPositionHistoryResponse;
 import com.slayer.binacet.dto.response.FuturesPositionResponse;
 import com.slayer.binacet.entity.FuturesPosition;
 import com.slayer.binacet.entity.FuturesWallet;
@@ -17,6 +18,7 @@ import com.slayer.binacet.service.FuturesPnLService;
 import com.slayer.binacet.service.FuturesPositionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -189,14 +191,14 @@ public class FuturesPositionServiceImpl implements FuturesPositionService {
 
 
     @Override
-    public org.springframework.data.domain.Page<com.slayer.binacet.dto.response.FuturesPositionHistoryResponse> getPositionHistory(
+    public Page<FuturesPositionHistoryResponse> getPositionHistory(
             String symbol, org.springframework.data.domain.Pageable pageable) {
         String userId = getCurrentUser().getId();
         String querySymbol = (symbol != null && !symbol.isBlank()) ? symbol.toUpperCase() : null;
         org.springframework.data.domain.Page<com.slayer.binacet.entity.FuturesTransaction> transactions =
                 futuresTransactionRepository.findUserTransactions(userId, querySymbol, pageable);
 
-        return transactions.map(t -> com.slayer.binacet.dto.response.FuturesPositionHistoryResponse.builder()
+        return transactions.map(t -> FuturesPositionHistoryResponse.builder()
                 .id(t.getId())
                 .symbol(t.getSymbol())
                 .stage(t.getStage())
