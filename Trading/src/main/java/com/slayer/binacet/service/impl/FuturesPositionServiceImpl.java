@@ -205,7 +205,7 @@ public class FuturesPositionServiceImpl implements FuturesPositionService {
                 .realizedPnl(t.getAmount())
                 .feeAmount(t.getFeeAmount())
                 .leverage(t.getLeverage() != null ? t.getLeverage() : (t.getPosition() != null ? t.getPosition().getLeverage() : null))
-                .avgPrice(t.getEntryPrice() != null ? t.getEntryPrice() : (t.getPosition() != null ? t.getPosition().getAvgPrice() : null))
+                .avgPrice(t.getEntryPrice() != null ? t.getEntryPrice().abs() : (t.getPosition() != null && t.getPosition().getAvgPrice() != null ? t.getPosition().getAvgPrice().abs() : null))
                 .source(t.getSource())
                 .parentType(t.getParentType())
                 .parentId(t.getParentId())
