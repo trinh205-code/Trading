@@ -73,7 +73,6 @@ public class FuturesPositionServiceImpl implements FuturesPositionService {
         OrderSide closeSide = activePos.compareTo(BigDecimal.ZERO) > 0 ? OrderSide.SELL : OrderSide.BUY;
         BigDecimal closeQuantity = activePos.abs();
 
-        BigDecimal totalMarginReturn = closeQuantity.multiply(position.getAvgPrice());
         CreateFuturesOrderRequest closeRequest = CreateFuturesOrderRequest.builder()
                 .symbol(position.getInstrument().getSymbol())
                 .side(closeSide)
@@ -169,7 +168,7 @@ public class FuturesPositionServiceImpl implements FuturesPositionService {
         //  Xác định chiều lệnh ngược lại để giảm/đóng vị thế
         OrderSide closeSide = activePos.compareTo(BigDecimal.ZERO) > 0 ? OrderSide.SELL : OrderSide.BUY;
 
-        // 4. Tạo lệnh đóng có cờ reduceOnly = true
+        //  Tạo lệnh đóng có cờ reduceOnly = true
         CreateFuturesOrderRequest closeRequest = CreateFuturesOrderRequest.builder()
                 .symbol(position.getInstrument().getSymbol())
                 .side(closeSide)
@@ -203,8 +202,8 @@ public class FuturesPositionServiceImpl implements FuturesPositionService {
                 .stage(t.getStage())
                 .realizedPnl(t.getAmount())
                 .feeAmount(t.getFeeAmount())
-                .leverage(t.getPosition() != null ? t.getPosition().getLeverage() : null)
-                .avgPrice(t.getPosition() != null ? t.getPosition().getAvgPrice() : null)
+                .leverage(t.getLeverage() != null ? t.getLeverage() : (t.getPosition() != null ? t.getPosition().getLeverage() : null))
+                .avgPrice(t.getEntryPrice() != null ? t.getEntryPrice() : (t.getPosition() != null ? t.getPosition().getAvgPrice() : null))
                 .source(t.getSource())
                 .parentType(t.getParentType())
                 .parentId(t.getParentId())

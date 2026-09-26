@@ -134,7 +134,8 @@ public class FuturesMatchingServiceImpl  {
 
         if (realizedPnl.compareTo(BigDecimal.ZERO) != 0) {
             futuresWalletService.applyRealizedPnl(userId, currency, realizedPnl);
-            recordTransaction(position, symbol, "default", realizedPnl, "user", parentType, parentId);
+            recordTransaction(position, symbol, "default", realizedPnl, "user", parentType, parentId,
+                    fillResult.entryPrice(), fillResult.leverage());
         }
     }
 
@@ -199,6 +200,9 @@ public class FuturesMatchingServiceImpl  {
                 ? existingQty.subtract(closingQty)
                 : existingQty.add(closingQty);
 
+        BigDecimal entryPriceBeforeClose = position.getAvgPrice();
+        BigDecimal leverageBeforeClose = position.getLeverage() != null ? position.getLeverage() : effectiveLeverage;
+
         // PnL thực nhận trên phần ĐÓNG (không liên quan gì tới phần mở mới nếu có đảo chiều)
         BigDecimal realizedPnl = existingQty.signum() > 0
                 ? fillPrice.subtract(position.getAvgPrice()).multiply(closingQty)
@@ -243,7 +247,7 @@ public class FuturesMatchingServiceImpl  {
             position.setLockedUserMargin(totalPositionMargin.subtract(marginReleased).max(BigDecimal.ZERO));
         }
 
-        return new FillResult(realizedPnl, marginReleased, marginToLock);
+        return new FillResult(realizedPnl, marginReleased, marginToLock, entryPriceBeforeClose, leverageBeforeClose);
     }
 
     private void processLimitFill(FuturesOrder order, BigDecimal fillQty, BigDecimal fillPrice, boolean isMaker) {
@@ -286,10 +290,18 @@ public class FuturesMatchingServiceImpl  {
     }
 
     private void recordTransaction(FuturesPosition position, String symbol, String stage,
-                                   BigDecimal amount, String source, String parentType, String parentId) {
+                                   BigDecimal amount, String source, String parentType, String parentId,
+                                   BigDecimal entryPrice, BigDecimal leverage) {
         transactionRepository.save(FuturesTransaction.builder()
-                .position(position).symbol(symbol).stage(stage).amount(amount)
-                .source(source).parentType(parentType).parentId(parentId)
+                .position(position)
+                .symbol(symbol)
+                .stage(stage)
+                .amount(amount)
+                .entryPrice(entryPrice)
+                .leverage(leverage)
+                .source(source)
+                .parentType(parentType)
+                .parentId(parentId)
                 .createdAt(Instant.now())
                 .build());
     }

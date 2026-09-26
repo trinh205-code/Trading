@@ -35,6 +35,13 @@ public class FuturesTransaction {
     private BigDecimal amount;
     @Column(precision = 36, scale = 18)
     private BigDecimal feeAmount;
+
+    @Column(precision = 36, scale = 18)
+    private BigDecimal entryPrice; // Giá vào lúc đóng lệnh / thanh lý
+
+    @Column(precision = 10, scale = 2)
+    private BigDecimal leverage;   // Đòn bẩy sử dụng lúc đó
+
     private String source;         // user, system
     private String parentType;
     private String parentId;

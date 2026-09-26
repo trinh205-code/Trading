@@ -143,6 +143,8 @@ public class FuturesLiquidationService {
                 .symbol(symbol)
                 .stage("liquidation")
                 .amount(amount)
+                .entryPrice(position != null ? position.getAvgPrice() : null)
+                .leverage(position != null ? position.getLeverage() : null)
                 .source("system")
                 .parentType("Liquidation")
                 .parentId(position.getId().toString())
