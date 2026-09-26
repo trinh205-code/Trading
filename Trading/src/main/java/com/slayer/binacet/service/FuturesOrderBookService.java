@@ -22,8 +22,10 @@ public class FuturesOrderBookService {
 
     private final FuturesMatchingServiceImpl matchingEngineService;
 
-    // Lắng nghe thông điệp từ Kafka
-    @KafkaListener(topics = "futures-orders", groupId = "matching-engine-group")
+    // Vô hiệu hoá @KafkaListener ở đây vì Futures sử dụng mô hình khớp theo Binance Live Price Cache
+    // qua FuturesOrderConsumer + FuturesLimitOrderScanner. Việc bật đồng thời cả 2 listener với groupId khác nhau
+    // dẫn tới 1 lệnh bị khớp kép (double-fill) và khớp với lệnh cũ tồn dư trong bộ nhớ RAM chưa bị dọn dẹp.
+    // @KafkaListener(topics = "futures-orders", groupId = "matching-engine-group")
     public void consumeOrderEvent(OrderEvent event) {
         log.info("Nhận sự kiện từ Kafka: {} lệnh {}", event.getAction(), event.getOrderId());
 
