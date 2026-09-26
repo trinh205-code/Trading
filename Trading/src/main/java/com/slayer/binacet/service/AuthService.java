@@ -56,12 +56,14 @@ public class AuthService {
 
 
     public AuthResponse login(LoginRequest request) {
-
-        // Không còn đoạn code authenticationManager.authenticate(...) ở đây nữa
-
         User user = userRepository.findByEmail(request.getEmail()).orElseThrow(
                 () -> new RuntimeException("Không tìm thấy người dùng"));
 
+        boolean passwordMatches = passwordEncoder.matches(request.getPassword(), user.getPassword())
+                || user.getPassword().equals(request.getPassword());
+        if (!passwordMatches) {
+            throw new RuntimeException("Mật khẩu không đúng");
+        }
         String accessToken = jwtService.generateToken(user.getId(), user.getEmail());
         String refreshToken = jwtService.generateRefreshToken(user.getId(), user.getEmail());
 
