@@ -43,6 +43,14 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ex.getMessage(), "TOKEN_REFRESH_FAILED"));
     }
 
+    // 4. Lỗi phân quyền (RBAC / 403 Forbidden)
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAccessDeniedException(org.springframework.security.access.AccessDeniedException ex) {
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.error("Bạn không có quyền thực hiện thao tác này", "FORBIDDEN"));
+    }
+
     // 4. Các RuntimeException custom khác (lỗi do client / input sai)
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ApiResponse<Void>> handleRuntimeException(RuntimeException ex) {
