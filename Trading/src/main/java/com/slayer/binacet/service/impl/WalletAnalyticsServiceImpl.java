@@ -6,6 +6,7 @@ import com.slayer.binacet.dto.response.PnlChartPointDto;
 import com.slayer.binacet.entity.FuturesPosition;
 import com.slayer.binacet.entity.User;
 import com.slayer.binacet.entity.UserDailyEquitySnapshot;
+import com.slayer.binacet.entity.UserHourlyEquitySnapshot;
 import com.slayer.binacet.repository.*;
 import com.slayer.binacet.service.WalletAnalyticsService;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,7 @@ import java.util.*;
 public class WalletAnalyticsServiceImpl implements WalletAnalyticsService {
 
     private final UserDailyEquitySnapshotRepository snapshotRepo;
+    private final UserHourlyEquitySnapshotRepository hourlySnapshotRepo;
     private final WalletBalanceRepository walletBalanceRepo;
     private final FuturesWalletRepository futuresWalletRepo;
     private final FuturesPositionRepository futuresPositionRepo;
@@ -179,8 +181,26 @@ public class WalletAnalyticsServiceImpl implements WalletAnalyticsService {
         List<PnlChartPointDto> points = new ArrayList<>();
         java.time.LocalDateTime now = java.time.LocalDateTime.now();
         java.time.LocalDateTime currentHourTime = now.truncatedTo(java.time.temporal.ChronoUnit.HOURS);
+        java.time.LocalDateTime startTime = currentHourTime.minusHours(23);
+
+        List<UserHourlyEquitySnapshot> hourlySnaps = hourlySnapshotRepo
+                .findByUserIdAndSnapshotTimeGreaterThanEqualOrderBySnapshotTimeAsc(userId, startTime);
+        
+        Map<java.time.LocalDateTime, BigDecimal> snapMap = new HashMap<>();
+        for (UserHourlyEquitySnapshot snap : hourlySnaps) {
+            snapMap.put(snap.getSnapshotTime(), snap.getTotalEquity());
+        }
 
         BigDecimal roundedEquity = currentEquity.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal lastKnown = roundedEquity;
+
+        // Try to find the earliest known equity to backfill if missing
+        if (!hourlySnaps.isEmpty()) {
+            lastKnown = hourlySnaps.get(0).getTotalEquity();
+        }
+
+        BigDecimal cumulative = BigDecimal.ZERO;
+        BigDecimal startValue = lastKnown;
 
         for (int i = 23; i >= 0; i--) {
             java.time.LocalDateTime targetHour = currentHourTime.minusHours(i);
@@ -188,14 +208,31 @@ public class WalletAnalyticsServiceImpl implements WalletAnalyticsService {
             String fullTimestamp = targetHour.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
 
             boolean isCurrentHour = (i == 0);
+            
+            BigDecimal val;
+            if (isCurrentHour) {
+                val = roundedEquity;
+            } else if (snapMap.containsKey(targetHour)) {
+                val = snapMap.get(targetHour).setScale(2, RoundingMode.HALF_UP);
+                lastKnown = val;
+            } else {
+                val = lastKnown.setScale(2, RoundingMode.HALF_UP);
+            }
+
+            if (i == 23) {
+                startValue = val;
+            }
+
+            BigDecimal pnl = val.subtract(startValue);
+            BigDecimal pnlPercent = calculatePercent(pnl, startValue);
 
             points.add(PnlChartPointDto.builder()
                     .timestamp(fullTimestamp)
                     .dateLabel(isCurrentHour ? String.format("%s (Hiện tại)", timeLabel) : timeLabel)
-                    .assetValue(roundedEquity)
-                    .dailyPnl(BigDecimal.ZERO)
-                    .dailyPnlPercent(BigDecimal.ZERO)
-                    .cumulativePnl(BigDecimal.ZERO)
+                    .assetValue(val)
+                    .dailyPnl(pnl)
+                    .dailyPnlPercent(pnlPercent)
+                    .cumulativePnl(pnl)
                     .build());
         }
 
@@ -255,6 +292,37 @@ public class WalletAnalyticsServiceImpl implements WalletAnalyticsService {
 
     private BigDecimal calculateTodayPnl(String userId) {
         return BigDecimal.ZERO;
+    }
+
+    @Scheduled(cron = "0 0 * * * ?") // Chạy mỗi giờ (ví dụ: 11:00, 12:00)
+    @Transactional
+    public void captureHourlySnapshots() {
+        java.time.LocalDateTime currentHour = java.time.LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.HOURS);
+        List<String> allUserIds = walletBalanceRepo.findDistinctUserIds();
+
+        for (String uid : allUserIds) {
+            try {
+                BigDecimal equity = calculateCurrentTotalEquity(uid);
+                
+                // Lấy snapshot giờ trước đó
+                BigDecimal prevEquity = hourlySnapshotRepo.findByUserIdAndSnapshotTime(uid, currentHour.minusHours(1))
+                        .map(UserHourlyEquitySnapshot::getTotalEquity)
+                        .orElse(equity);
+
+                BigDecimal hourlyPnl = equity.subtract(prevEquity);
+
+                UserHourlyEquitySnapshot snapshot = UserHourlyEquitySnapshot.builder()
+                        .userId(uid)
+                        .snapshotTime(currentHour)
+                        .totalEquity(equity)
+                        .hourlyPnl(hourlyPnl)
+                        .build();
+
+                hourlySnapshotRepo.save(snapshot);
+            } catch (Exception e) {
+                log.error("Lỗi khi chụp snapshot tài sản theo giờ cho user {}: {}", uid, e.getMessage());
+            }
+        }
     }
 
     /**
