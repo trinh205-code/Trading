@@ -4,6 +4,8 @@ import com.slayer.binacet.dto.response.ApiResponse;
 import com.slayer.binacet.dto.response.MarketResponse;
 import com.slayer.binacet.dto.response.OrderBookResponse;
 import com.slayer.binacet.dto.response.PublicTradeResponse;
+import com.slayer.binacet.dto.response.TopCoinResponse;
+import com.slayer.binacet.dto.response.TopCoinsOverviewResponse;
 import com.slayer.binacet.service.MarketService;
 import com.slayer.binacet.service.impl.MarketServiceImpl;
 import com.slayer.binacet.service.impl.TradeServiceImpl;
@@ -20,6 +22,20 @@ public class MarketController {
 
     private final MarketServiceImpl marketService;
     private final TradeServiceImpl tradeService;
+
+    @GetMapping("/top-coins")
+    public ResponseEntity<ApiResponse<TopCoinsOverviewResponse>> getTopCoins() {
+        TopCoinsOverviewResponse response = marketService.getTopCoinsOverview();
+        return ResponseEntity.ok(ApiResponse.success(response, "Lấy danh sách Top Coins thành công"));
+    }
+
+    @GetMapping("/top-coins/{category}")
+    public ResponseEntity<ApiResponse<List<TopCoinResponse>>> getTopCoinsByCategory(
+            @PathVariable String category,
+            @RequestParam(defaultValue = "10") int limit) {
+        List<TopCoinResponse> coins = marketService.getTopCoinsByCategory(category, limit);
+        return ResponseEntity.ok(ApiResponse.success(coins, "Lấy danh sách Top " + category + " thành công"));
+    }
 
     @GetMapping("/prices")
     public ResponseEntity<ApiResponse<List<MarketResponse>>> getAllMarkets() {

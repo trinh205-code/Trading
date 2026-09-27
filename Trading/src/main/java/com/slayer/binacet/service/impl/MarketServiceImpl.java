@@ -10,6 +10,8 @@ import com.slayer.binacet.service.MarketService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -37,44 +39,52 @@ public class MarketServiceImpl implements MarketService {
 
     @Override
     public List<MarketResponse> getAllMarkets() {
-        List<String> activeSymbols = new ArrayList<>();
+        List<Market> activeMarkets = marketRepository.findByStatus("TRADING");
+        if (activeMarkets.isEmpty()) {
+            activeMarkets = marketRepository.findAll();
+        }
 
-        try {
-            List<Market> activeMarkets = marketRepository.findByStatus("TRADING");
-            activeSymbols = activeMarkets.stream()
-                    .map(Market::getSymbol)
+        if (activeMarkets.isEmpty()) {
+            return DEFAULT_PAIRS.stream()
+                    .map(this::getMarketBySymbol)
+                    .filter(Objects::nonNull)
                     .toList();
-        } catch (Exception e) {
-            log.warn("Không thể truy vấn DB bảng Market, sử dụng danh sách mặc định. Lỗi: {}", e.getMessage());
         }
 
-        // Nếu DB rỗng hoặc chưa đồng bộ, dùng danh sách mặc định
-        if (activeSymbols.isEmpty()) {
-            activeSymbols = DEFAULT_PAIRS;
-        }
-
-        List<MarketResponse> result = new ArrayList<>();
-
-        // Lấy thông tin ticker cho từng symbol an toàn 100%
-        for (String symbol : activeSymbols) {
-            try {
-                MarketResponse res = getMarketBySymbol(symbol);
-                if (res != null) {
-                    result.add(res);
-                }
-            } catch (Exception e) {
-                log.warn("Bỏ qua symbol {} do không lấy được giá từ Binance", symbol);
-            }
-        }
-
-        return result;
-      }
+        return activeMarkets.stream()
+                .map(m -> {
+                    BigDecimal price = m.getCurrentPrice() != null ? m.getCurrentPrice() : marketPriceCache.getLastPrice(m.getSymbol());
+                    return MarketResponse.builder()
+                            .symbol(m.getSymbol())
+                            .currentPrice(price)
+                            .priceChange(m.getPriceChangePercent() != null ? m.getPriceChangePercent() : BigDecimal.ZERO)
+                            .highPrice(m.getHigh24h())
+                            .lowPrice(m.getLow24h())
+                            .volume24h(m.getVolume24h())
+                            .build();
+                })
+                .toList();
+    }
 
     @Override
     public MarketResponse getMarketBySymbol(String symbol) {
         String safeSymbol = validateAndNormalize(symbol);
-        log.info("Gọi Binance API lấy giá 24h cho cặp: {}", safeSymbol);
 
+        // 1. Kiểm tra trong DB local trước
+        Optional<Market> marketOpt = marketRepository.findById(safeSymbol);
+        if (marketOpt.isPresent() && marketOpt.get().getCurrentPrice() != null) {
+            Market m = marketOpt.get();
+            return MarketResponse.builder()
+                    .symbol(m.getSymbol())
+                    .currentPrice(m.getCurrentPrice())
+                    .priceChange(m.getPriceChangePercent() != null ? m.getPriceChangePercent() : BigDecimal.ZERO)
+                    .highPrice(m.getHigh24h())
+                    .lowPrice(m.getLow24h())
+                    .volume24h(m.getVolume24h())
+                    .build();
+        }
+
+        // 2. Nếu DB chưa có, gọi Binance trực tiếp làm fallback
         String url = UriComponentsBuilder.fromHttpUrl(BINANCE_API_URL + "/ticker/24hr")
                 .queryParam("symbol", safeSymbol)
                 .toUriString();
@@ -91,7 +101,6 @@ public class MarketServiceImpl implements MarketService {
     @Override
     public OrderBookResponse getOrderBook(String symbol) {
         String safeSymbol = validateAndNormalize(symbol);
-        log.info("Gọi Binance API lấy sổ lệnh cho cặp: {}", safeSymbol);
 
         String url = UriComponentsBuilder.fromHttpUrl(BINANCE_API_URL + "/depth")
                 .queryParam("symbol", safeSymbol)
@@ -117,10 +126,22 @@ public class MarketServiceImpl implements MarketService {
     public BigDecimal getCurrentPrice(String symbol) {
         String safeSymbol = validateAndNormalize(symbol);
         try {
+            BigDecimal cached = marketPriceCache.getLastPrice(safeSymbol);
+            if (cached != null && cached.compareTo(BigDecimal.ZERO) > 0) {
+                return cached;
+            }
+
+            Optional<Market> m = marketRepository.findById(safeSymbol);
+            if (m.isPresent() && m.get().getCurrentPrice() != null) {
+                BigDecimal p = m.get().getCurrentPrice();
+                marketPriceCache.updateLastPrice(safeSymbol, p);
+                marketPriceCache.updateMarkPrice(safeSymbol, p);
+                return p;
+            }
+
             MarketResponse response = getMarketBySymbol(safeSymbol);
             if (response != null && response.getCurrentPrice() != null) {
                 BigDecimal price = response.getCurrentPrice();
-                // Nạp ngược lại vào RAM Cache để các request đặt lệnh sau dùng ngay
                 marketPriceCache.updateLastPrice(safeSymbol, price);
                 marketPriceCache.updateMarkPrice(safeSymbol, price);
                 return price;
@@ -129,6 +150,72 @@ public class MarketServiceImpl implements MarketService {
             log.error("Không thể lấy giá qua REST API cho {}: {}", safeSymbol, e.getMessage());
         }
         return null;
+    }
+
+    @Override
+    public TopCoinsOverviewResponse getTopCoinsOverview() {
+        Pageable limit7 = PageRequest.of(0, 7);
+
+        List<TopCoinResponse> highlights = toTopList(marketRepository.findByStatusOrderByQuoteVolume24hDesc("TRADING", limit7));
+        List<TopCoinResponse> gainers = toTopList(marketRepository.findByStatusOrderByPriceChangePercentDesc("TRADING", limit7));
+        List<TopCoinResponse> losers = toTopList(marketRepository.findByStatusOrderByPriceChangePercentAsc("TRADING", limit7));
+        List<TopCoinResponse> newListings = toTopList(marketRepository.findByStatusOrderBySymbolAsc("TRADING", limit7));
+        List<TopCoinResponse> topMarketCap = toTopList(marketRepository.findByStatusOrderByMarketCapDesc("TRADING", limit7));
+        List<TopCoinResponse> topVolume = toTopList(marketRepository.findByStatusOrderByQuoteVolume24hDesc("TRADING", limit7));
+
+        return TopCoinsOverviewResponse.builder()
+                .highlights(highlights)
+                .gainers(gainers)
+                .losers(losers)
+                .newListings(newListings)
+                .topMarketCap(topMarketCap)
+                .topVolume(topVolume)
+                .build();
+    }
+
+    @Override
+    public List<TopCoinResponse> getTopCoinsByCategory(String category, int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, 50));
+        Pageable pageable = PageRequest.of(0, safeLimit);
+
+        String cat = category != null ? category.toLowerCase().trim() : "highlights";
+
+        List<Market> markets = switch (cat) {
+            case "gainers", "top-gainers", "tang-gia" ->
+                    marketRepository.findByStatusOrderByPriceChangePercentDesc("TRADING", pageable);
+            case "losers", "top-losers", "giam-gia" ->
+                    marketRepository.findByStatusOrderByPriceChangePercentAsc("TRADING", pageable);
+            case "volume", "top-volume", "gia-tri" ->
+                    marketRepository.findByStatusOrderByQuoteVolume24hDesc("TRADING", pageable);
+            case "market-cap", "marketcap", "von-hoa" ->
+                    marketRepository.findByStatusOrderByMarketCapDesc("TRADING", pageable);
+            case "new", "new-listings", "moi-niem-yet" ->
+                    marketRepository.findByStatusOrderBySymbolAsc("TRADING", pageable);
+            default -> // highlights, popular, pho-bien
+                    marketRepository.findByStatusOrderByQuoteVolume24hDesc("TRADING", pageable);
+        };
+
+        return toTopList(markets);
+    }
+
+    private List<TopCoinResponse> toTopList(List<Market> markets) {
+        if (markets == null) return List.of();
+        return markets.stream()
+                .map(m -> TopCoinResponse.builder()
+                        .symbol(m.getSymbol())
+                        .pair(m.getPair() != null ? m.getPair() : m.getBaseCurrencyShortName() + "/" + m.getTargetCurrencyShortName())
+                        .baseCurrency(m.getBaseCurrencyShortName())
+                        .targetCurrency(m.getTargetCurrencyShortName())
+                        .currentPrice(m.getCurrentPrice() != null ? m.getCurrentPrice() : marketPriceCache.getLastPrice(m.getSymbol()))
+                        .priceChange(m.getPriceChange())
+                        .priceChangePercent(m.getPriceChangePercent())
+                        .high24h(m.getHigh24h())
+                        .low24h(m.getLow24h())
+                        .volume24h(m.getVolume24h())
+                        .quoteVolume24h(m.getQuoteVolume24h())
+                        .marketCap(m.getMarketCap())
+                        .build())
+                .toList();
     }
 
     private String validateAndNormalize(String symbol) {

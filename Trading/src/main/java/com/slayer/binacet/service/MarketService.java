@@ -2,6 +2,8 @@ package com.slayer.binacet.service;
 
 import com.slayer.binacet.dto.response.MarketResponse;
 import com.slayer.binacet.dto.response.OrderBookResponse;
+import com.slayer.binacet.dto.response.TopCoinResponse;
+import com.slayer.binacet.dto.response.TopCoinsOverviewResponse;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -14,4 +16,8 @@ public interface MarketService {
     OrderBookResponse getOrderBook(String symbol);
 
     BigDecimal getCurrentPrice(String symbol);
+
+    TopCoinsOverviewResponse getTopCoinsOverview();
+
+    List<TopCoinResponse> getTopCoinsByCategory(String category, int limit);
 }

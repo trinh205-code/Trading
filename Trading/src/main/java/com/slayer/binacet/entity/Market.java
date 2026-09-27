@@ -40,6 +40,32 @@ public class Market {
     @Column(precision = 24, scale = 8)
     private BigDecimal minNotional;
 
+    // 8 trường thống kê giá và khối lượng 24h
+    @Column(precision = 36, scale = 18)
+    private BigDecimal currentPrice;
+
+    @Column(precision = 36, scale = 18)
+    private BigDecimal priceChange;
+
+    @Column(precision = 18, scale = 4)
+    private BigDecimal priceChangePercent;
+
+    @Column(precision = 36, scale = 18)
+    private BigDecimal high24h;
+
+    @Column(precision = 36, scale = 18)
+    private BigDecimal low24h;
+
+    @Column(precision = 36, scale = 18)
+    private BigDecimal volume24h;
+
+    @Column(precision = 36, scale = 18)
+    private BigDecimal quoteVolume24h;
+
+    @Column(precision = 36, scale = 8)
+    private BigDecimal marketCap;
+
+
 
 
     @OneToMany(mappedBy = "market", fetch = FetchType.LAZY)

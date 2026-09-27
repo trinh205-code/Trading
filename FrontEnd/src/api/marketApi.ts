@@ -1,7 +1,7 @@
 import axiosClient from './axiosClient';
 import axios from 'axios';
 import { ApiResponse } from '../types/api';
-import { MarketResponse, OrderBookResponse, KlineCandle } from '../types/market';
+import { MarketResponse, OrderBookResponse, KlineCandle, TopCoin, TopCoinsOverview } from '../types/market';
 
 const DEFAULT_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT'];
 
@@ -124,6 +124,14 @@ export const marketApi = {
         };
       }
     }
+  },
+
+  getTopCoinsOverview: async (): Promise<ApiResponse<TopCoinsOverview>> => {
+    return axiosClient.get('/market/top-coins');
+  },
+
+  getTopCoinsByCategory: async (category: string, limit: number = 10): Promise<ApiResponse<TopCoin[]>> => {
+    return axiosClient.get(`/market/top-coins/${category}`, { params: { limit } });
   },
 
   /**

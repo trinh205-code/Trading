@@ -96,24 +96,19 @@ public class LiveMatchingEngine {
                 walletService.addAvailableBalance(userId, targetAsset, refundAmount);
             }
 
-            // Khấu trừ phí giao dịch Spot (0.1% lượng coin mua được)
             BigDecimal fee = matchedQuantity.multiply(FEE_RATE);
             BigDecimal netReceivedCoin = matchedQuantity.subtract(fee);
 
-            // Cộng coin thực nhận (đã trừ phí 0.1%) vào ví
             walletService.addAvailableBalance(userId, baseAsset, netReceivedCoin);
 
         } else {
             // -- LỆNH BÁN --
-            // Với lệnh bán, giải phóng chính xác lượng coin cơ sở (BTC) đã khớp
             BigDecimal lockedBtcValue = matchedQuantity;
             walletService.deductLockedBalance(userId, baseAsset, lockedBtcValue);
 
-            // Khấu trừ phí giao dịch Spot (0.1% tổng số tiền USDT thu về)
             BigDecimal fee = actualUsdtValue.multiply(FEE_RATE);
             BigDecimal netReceivedUsdt = actualUsdtValue.subtract(fee);
 
-            // Cộng USDT thực nhận (đã trừ phí 0.1%) vào ví
             walletService.addAvailableBalance(userId, targetAsset, netReceivedUsdt);
         }
 

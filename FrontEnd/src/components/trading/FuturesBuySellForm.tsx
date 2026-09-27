@@ -34,7 +34,7 @@ export const FuturesBuySellForm: React.FC<FuturesBuySellFormProps> = ({
   const [sliderValue, setSliderValue] = useState<number>(0);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-  const [currentPosition, setCurrentPosition] = useState<FuturesPositionResponse | null>(null);
+  const [currentPosition, setCurrentPosition] = useState<any | null>(null);
 
   const fetchActivePosition = async () => {
     if (!isAuthenticated) return;

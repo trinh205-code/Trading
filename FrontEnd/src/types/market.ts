@@ -30,6 +30,30 @@ export interface MarketResponse {
   volume24h: number;          // 24h Volume
 }
 
+export interface TopCoin {
+  symbol: string;
+  pair: string;
+  baseCurrency: string;
+  targetCurrency: string;
+  currentPrice: number;
+  priceChange: number;
+  priceChangePercent: number;
+  high24h: number;
+  low24h: number;
+  volume24h: number;
+  quoteVolume24h: number;
+  marketCap: number;
+}
+
+export interface TopCoinsOverview {
+  highlights: TopCoin[];
+  gainers: TopCoin[];
+  losers: TopCoin[];
+  newListings: TopCoin[];
+  topMarketCap: TopCoin[];
+  topVolume: TopCoin[];
+}
+
 export interface OrderEntry {
   price: number;
   quantity: number;

@@ -17,8 +17,10 @@ import lombok.NoArgsConstructor;
 public class BinanceTickerResponse {
     private String symbol;
     private BigDecimal lastPrice;          // Giá hiện tại
-    private BigDecimal priceChangePercent; // % Thay đổi (Binance trả về phần trăm)
+    private BigDecimal priceChange;        // Giá thay đổi 24h
+    private BigDecimal priceChangePercent; // % Thay đổi
     private BigDecimal highPrice;
     private BigDecimal lowPrice;
     private BigDecimal volume;
+    private BigDecimal quoteVolume;        // Khối lượng USDT
 }
