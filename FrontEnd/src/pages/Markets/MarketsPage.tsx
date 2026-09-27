@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Search, ArrowUpDown, TrendingUp, TrendingDown, Star, 
-  ExternalLink, ChevronRight, BarChart2, Flame, Sparkles, 
+  ExternalLink, ChevronRight, ChevronLeft, BarChart2, Flame, Sparkles, 
   Award, Zap, DollarSign, Filter, RefreshCw
 } from 'lucide-react';
 import { CoinIcon } from '../../components/common/CoinIcon';
@@ -27,6 +27,27 @@ export const MarketsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortField, setSortField] = useState<'symbol' | 'currentPrice' | 'priceChange' | 'volume24h'>('volume24h');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  // Pagination for main table (20 coins / page)
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const pageSize = 20;
+
+  // Backend Paged Data State
+  const [pagedData, setPagedData] = useState<{
+    content: MarketResponse[];
+    totalPages: number;
+    totalElements: number;
+  }>({
+    content: [],
+    totalPages: 1,
+    totalElements: 0,
+  });
+  const [isLoadingPage, setIsLoadingPage] = useState<boolean>(false);
+
+  // Reset page when filter or search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, marketFilter]);
 
   // Favorites
   const [favorites, setFavorites] = useState<string[]>(() => {
@@ -66,18 +87,54 @@ export const MarketsPage: React.FC = () => {
     }
   };
 
+  // Fetch paginated markets from Backend
+  const loadPagedMarkets = async () => {
+    setIsLoadingPage(true);
+    try {
+      const res = await marketApi.getPagedMarkets({
+        page: currentPage - 1, // Spring backend is 0-indexed
+        size: pageSize,
+        sortBy: sortField,
+        direction: sortDirection,
+        search: searchTerm.trim() || undefined,
+        category: marketFilter,
+        symbols: marketFilter === 'FAVORITES' ? favorites : undefined,
+      });
+
+      if (res.success && res.data) {
+        setPagedData({
+          content: res.data.content || [],
+          totalPages: res.data.totalPages || 1,
+          totalElements: res.data.totalElements || 0,
+        });
+      }
+    } catch (err) {
+      console.warn('Backend paged API failed, fallback active:', err);
+    } finally {
+      setIsLoadingPage(false);
+    }
+  };
+
   useEffect(() => {
     fetchMarkets();
     loadTopCoins();
+  }, []);
 
-    // Tự động làm mới mỗi 30s
+  // Fetch / Refetch paged markets when parameters change
+  useEffect(() => {
+    loadPagedMarkets();
+  }, [currentPage, pageSize, sortField, sortDirection, searchTerm, marketFilter, favorites]);
+
+  // Periodic refresh every 30s
+  useEffect(() => {
     const interval = setInterval(() => {
       fetchMarkets();
       loadTopCoins();
+      loadPagedMarkets();
     }, 30000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [currentPage, pageSize, sortField, sortDirection, searchTerm, marketFilter, favorites]);
 
   const handleSort = (field: 'symbol' | 'currentPrice' | 'priceChange' | 'volume24h') => {
     if (sortField === field) {
@@ -140,6 +197,20 @@ export const MarketsPage: React.FC = () => {
       if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
       return 0;
     });
+
+  // Pagination calculation (20 items per page)
+  const totalPages = Math.ceil(filteredMarkets.length / pageSize) || 1;
+  const paginatedMarkets = filteredMarkets.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
+  // Data to display: backend paged data, fallback to client-side sliced
+  const hasBackendData = pagedData.content.length > 0 || pagedData.totalElements > 0;
+  const displayMarkets = hasBackendData ? pagedData.content : paginatedMarkets;
+  const displayTotalElements = hasBackendData ? pagedData.totalElements : filteredMarkets.length;
+  const displayTotalPages = Math.max(1, hasBackendData ? pagedData.totalPages : totalPages);
+  const isTableLoading = isLoadingPage || (isLoadingMarkets && displayMarkets.length === 0);
 
   // Top Coins Fallback lists if backend not ready
   const defaultTopList: TopCoin[] = [
@@ -574,7 +645,7 @@ export const MarketsPage: React.FC = () => {
                   </thead>
 
                   <tbody className="divide-y divide-[#1c1c1c] text-xs">
-                    {isLoadingMarkets && markets.length === 0 ? (
+                    {isTableLoading && displayMarkets.length === 0 ? (
                       [1, 2, 3, 4, 5, 6].map((i) => (
                         <tr key={i} className="animate-pulse">
                           <td colSpan={6} className="py-4 px-4">
@@ -582,14 +653,14 @@ export const MarketsPage: React.FC = () => {
                           </td>
                         </tr>
                       ))
-                    ) : filteredMarkets.length === 0 ? (
+                    ) : displayMarkets.length === 0 ? (
                       <tr>
                         <td colSpan={6} className="py-12 text-center text-gray-500">
                           Không tìm thấy cặp giao dịch phù hợp.
                         </td>
                       </tr>
                     ) : (
-                      filteredMarkets.map((m) => {
+                      displayMarkets.map((m) => {
                         const isFav = favorites.includes(m.symbol);
                         const isPos = (m.priceChange || 0) >= 0;
                         const base = m.symbol.replace('USDT', '');
@@ -635,7 +706,7 @@ export const MarketsPage: React.FC = () => {
 
                             {/* Vốn hoá thị trường */}
                             <td className="py-3.5 px-4 text-right font-mono text-gray-300 text-xs">
-                              {formatMarketCap(m.volume24h * 15, m.currentPrice)}
+                              {formatMarketCap(m.marketCap || (m.quoteVolume24h ? m.quoteVolume24h * 15 : m.volume24h * 15), m.currentPrice)}
                             </td>
 
                             {/* Thao tác */}
@@ -661,6 +732,64 @@ export const MarketsPage: React.FC = () => {
                     )}
                   </tbody>
                 </table>
+
+                {/* Pagination Controls (20 coins / trang - Backend Pagination) */}
+                {displayTotalPages > 1 && (
+                  <div className="flex items-center justify-center sm:justify-end gap-1.5 px-6 py-4 border-t border-[#1c1c1c] text-xs">
+                    {/* Nút Trước */}
+                    <button
+                      onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                      disabled={currentPage === 1}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[#262626] bg-[#141414] hover:bg-[#222222] text-gray-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                      <span>Trước</span>
+                    </button>
+
+                    {/* Số trang */}
+                    {Array.from({ length: displayTotalPages }, (_, i) => i + 1).map((page) => {
+                      if (
+                        displayTotalPages > 7 &&
+                        page !== 1 &&
+                        page !== displayTotalPages &&
+                        Math.abs(page - currentPage) > 1
+                      ) {
+                        if (page === 2 || page === displayTotalPages - 1) {
+                          return (
+                            <span key={page} className="px-1 text-gray-600">
+                              ...
+                            </span>
+                          );
+                        }
+                        return null;
+                      }
+
+                      return (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentPage(page)}
+                          className={`min-w-[32px] h-8 px-2.5 rounded-lg font-medium transition-colors ${
+                            currentPage === page
+                              ? 'bg-white text-black font-bold shadow'
+                              : 'bg-[#141414] border border-[#262626] text-gray-400 hover:text-white hover:bg-[#222222]'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      );
+                    })}
+
+                    {/* Nút Tiếp */}
+                    <button
+                      onClick={() => setCurrentPage(p => Math.min(p + 1, displayTotalPages))}
+                      disabled={currentPage === displayTotalPages}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[#262626] bg-[#141414] hover:bg-[#222222] text-gray-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <span>Tiếp</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>

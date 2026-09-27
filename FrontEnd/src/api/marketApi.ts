@@ -1,11 +1,28 @@
 import axiosClient from './axiosClient';
 import axios from 'axios';
-import { ApiResponse } from '../types/api';
+import { ApiResponse, PageResponse } from '../types/api';
 import { MarketResponse, OrderBookResponse, KlineCandle, TopCoin, TopCoinsOverview } from '../types/market';
 
 const DEFAULT_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT'];
 
 export const marketApi = {
+  getPagedMarkets: async (params: {
+    page?: number;
+    size?: number;
+    sortBy?: string;
+    direction?: string;
+    search?: string;
+    category?: string;
+    symbols?: string[];
+  }): Promise<ApiResponse<PageResponse<MarketResponse>>> => {
+    return await axiosClient.get('/market/paged', {
+      params: {
+        ...params,
+        symbols: params.symbols && params.symbols.length > 0 ? params.symbols.join(',') : undefined,
+      },
+    });
+  },
+
   getAllMarkets: async (): Promise<ApiResponse<MarketResponse[]>> => {
     try {
       const response: ApiResponse<MarketResponse[]> = await axiosClient.get('/market/prices');

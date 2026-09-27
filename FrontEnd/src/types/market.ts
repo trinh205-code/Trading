@@ -28,6 +28,8 @@ export interface MarketResponse {
   highPrice: number;          // 24h High
   lowPrice: number;           // 24h Low
   volume24h: number;          // 24h Volume
+  quoteVolume24h?: number;    // 24h Quote Volume
+  marketCap?: number;         // Market Cap
 }
 
 export interface TopCoin {

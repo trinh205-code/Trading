@@ -10,6 +10,8 @@ import com.slayer.binacet.service.MarketService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -37,6 +39,13 @@ public class MarketServiceImpl implements MarketService {
             "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"
     );
 
+    private static final Set<String> HOT_SYMBOLS = Set.of("BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT");
+    private static final Set<String> NEW_SYMBOLS = Set.of("SUIUSDT", "APTUSDT", "ARBUSDT", "OPUSDT", "NEARUSDT");
+    private static final Set<String> MEME_SYMBOLS = Set.of("DOGEUSDT", "SHIBUSDT", "PEPEUSDT");
+    private static final Set<String> DEFI_SYMBOLS = Set.of("UNIUSDT", "AAVEUSDT", "CRVUSDT", "MKRUSDT");
+    private static final Set<String> AI_SYMBOLS = Set.of("RNDRUSDT", "NEARUSDT", "GRTUSDT");
+    private static final Set<String> LAYER12_SYMBOLS = Set.of("BTCUSDT", "ETHUSDT", "SOLUSDT", "AVAXUSDT", "MATICUSDT", "ARBUSDT", "OPUSDT");
+
     @Override
     public List<MarketResponse> getAllMarkets() {
         List<Market> activeMarkets = marketRepository.findByStatus("TRADING");
@@ -61,9 +70,127 @@ public class MarketServiceImpl implements MarketService {
                             .highPrice(m.getHigh24h())
                             .lowPrice(m.getLow24h())
                             .volume24h(m.getVolume24h())
+                            .quoteVolume24h(m.getQuoteVolume24h())
+                            .marketCap(m.getMarketCap())
                             .build();
                 })
                 .toList();
+    }
+
+    @Override
+    public Page<MarketResponse> getPagedMarkets(int page, int size, String sortBy, String direction, String search, String category, List<String> symbols) {
+        List<MarketResponse> all = getAllMarkets();
+
+        // 1. Lọc search
+        List<MarketResponse> filtered = all;
+        if (search != null && !search.trim().isEmpty()) {
+            String q = search.trim().toLowerCase();
+            filtered = filtered.stream()
+                    .filter(m -> m.getSymbol() != null && m.getSymbol().toLowerCase().contains(q))
+                    .collect(Collectors.toList());
+        }
+
+        // 2. Lọc category
+        if (category != null && !category.equalsIgnoreCase("ALL")) {
+            String cat = category.toUpperCase();
+            switch (cat) {
+                case "GAINERS":
+                    filtered = filtered.stream()
+                            .filter(m -> m.getPriceChange() != null && m.getPriceChange().compareTo(BigDecimal.ZERO) > 0)
+                            .collect(Collectors.toList());
+                    break;
+                case "LOSERS":
+                    filtered = filtered.stream()
+                            .filter(m -> m.getPriceChange() != null && m.getPriceChange().compareTo(BigDecimal.ZERO) < 0)
+                            .collect(Collectors.toList());
+                    break;
+                case "HOT":
+                    filtered = filtered.stream()
+                            .filter(m -> HOT_SYMBOLS.contains(m.getSymbol()))
+                            .collect(Collectors.toList());
+                    break;
+                case "NEW":
+                    filtered = filtered.stream()
+                            .filter(m -> NEW_SYMBOLS.contains(m.getSymbol()))
+                            .collect(Collectors.toList());
+                    break;
+                case "MEME":
+                    filtered = filtered.stream()
+                            .filter(m -> MEME_SYMBOLS.contains(m.getSymbol()))
+                            .collect(Collectors.toList());
+                    break;
+                case "DEFI":
+                    filtered = filtered.stream()
+                            .filter(m -> DEFI_SYMBOLS.contains(m.getSymbol()))
+                            .collect(Collectors.toList());
+                    break;
+                case "AI":
+                    filtered = filtered.stream()
+                            .filter(m -> AI_SYMBOLS.contains(m.getSymbol()))
+                            .collect(Collectors.toList());
+                    break;
+                case "LAYER12":
+                    filtered = filtered.stream()
+                            .filter(m -> LAYER12_SYMBOLS.contains(m.getSymbol()))
+                            .collect(Collectors.toList());
+                    break;
+                case "FAVORITES":
+                    if (symbols != null && !symbols.isEmpty()) {
+                        Set<String> favs = new HashSet<>(symbols);
+                        filtered = filtered.stream()
+                                .filter(m -> favs.contains(m.getSymbol()))
+                                .collect(Collectors.toList());
+                    } else {
+                        filtered = Collections.emptyList();
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        // 3. Sắp xếp (Sorting)
+        Comparator<MarketResponse> comparator;
+        String sortKey = sortBy != null ? sortBy.toLowerCase() : "volume24h";
+        switch (sortKey) {
+            case "currentprice":
+                comparator = Comparator.comparing(MarketResponse::getCurrentPrice, Comparator.nullsLast(BigDecimal::compareTo));
+                break;
+            case "pricechange":
+            case "pricechangepercent":
+                comparator = Comparator.comparing(MarketResponse::getPriceChange, Comparator.nullsLast(BigDecimal::compareTo));
+                break;
+            case "marketcap":
+                comparator = Comparator.comparing(MarketResponse::getMarketCap, Comparator.nullsLast(BigDecimal::compareTo));
+                break;
+            case "symbol":
+                comparator = Comparator.comparing(MarketResponse::getSymbol, Comparator.nullsLast(String::compareToIgnoreCase));
+                break;
+            case "volume24h":
+            case "quotevolume24h":
+            default:
+                comparator = Comparator.comparing(
+                        m -> m.getQuoteVolume24h() != null ? m.getQuoteVolume24h() : (m.getVolume24h() != null ? m.getVolume24h() : BigDecimal.ZERO),
+                        Comparator.nullsLast(BigDecimal::compareTo)
+                );
+                break;
+        }
+
+        if ("desc".equalsIgnoreCase(direction)) {
+            comparator = comparator.reversed();
+        }
+        filtered = new ArrayList<>(filtered);
+        filtered.sort(comparator);
+
+        // 4. Phân trang (Pagination)
+        int safePage = Math.max(0, page);
+        int safeSize = size > 0 ? size : 20;
+        int total = filtered.size();
+        int start = Math.min(safePage * safeSize, total);
+        int end = Math.min(start + safeSize, total);
+        List<MarketResponse> pagedContent = filtered.subList(start, end);
+
+        return new PageImpl<>(pagedContent, PageRequest.of(safePage, safeSize), total);
     }
 
     @Override

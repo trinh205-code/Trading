@@ -18,4 +18,6 @@ public class MarketResponse {
     private BigDecimal highPrice;      // Giá cao nhất 24h
     private BigDecimal lowPrice;       // Giá thấp nhất 24h
     private BigDecimal volume24h;      // Khối lượng giao dịch 24h
+    private BigDecimal quoteVolume24h; // Khối lượng giao dịch USDT 24h
+    private BigDecimal marketCap;      // Vốn hóa thị trường
 }

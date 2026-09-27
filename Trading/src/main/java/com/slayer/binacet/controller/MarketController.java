@@ -10,6 +10,7 @@ import com.slayer.binacet.service.MarketService;
 import com.slayer.binacet.service.impl.MarketServiceImpl;
 import com.slayer.binacet.service.impl.TradeServiceImpl;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -35,6 +36,19 @@ public class MarketController {
             @RequestParam(defaultValue = "10") int limit) {
         List<TopCoinResponse> coins = marketService.getTopCoinsByCategory(category, limit);
         return ResponseEntity.ok(ApiResponse.success(coins, "Lấy danh sách Top " + category + " thành công"));
+    }
+
+    @GetMapping("/paged")
+    public ResponseEntity<ApiResponse<Page<MarketResponse>>> getPagedMarkets(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "volume24h") String sortBy,
+            @RequestParam(defaultValue = "desc") String direction,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) List<String> symbols) {
+        Page<MarketResponse> response = marketService.getPagedMarkets(page, size, sortBy, direction, search, category, symbols);
+        return ResponseEntity.ok(ApiResponse.success(response, "Lấy danh sách thị trường phân trang thành công"));
     }
 
     @GetMapping("/prices")
