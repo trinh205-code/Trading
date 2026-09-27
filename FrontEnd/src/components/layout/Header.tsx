@@ -214,16 +214,6 @@ export const Header: React.FC = () => {
                 </div>
               )}
             </div>
-
-            <span className="text-[#cccccc] px-2.5 py-1.5 hover:text-white hover:bg-[#1a1a1a] rounded cursor-pointer">
-              Tăng trưởng
-            </span>
-            <span className="text-[#cccccc] px-2.5 py-1.5 hover:text-white hover:bg-[#1a1a1a] rounded cursor-pointer">
-              Tổ chức
-            </span>
-            <span className="text-[#cccccc] px-2.5 py-1.5 hover:text-white hover:bg-[#1a1a1a] rounded cursor-pointer">
-              Học viện
-            </span>
           </nav>
         </div>
 
