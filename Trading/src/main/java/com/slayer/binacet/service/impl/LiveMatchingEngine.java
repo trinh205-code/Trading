@@ -72,6 +72,8 @@ public class LiveMatchingEngine {
         }
     }
 
+    private static final BigDecimal FEE_RATE = new BigDecimal("0.001"); // 0.1% phí Spot chuẩn Binance
+
     public void processFill(Order order, BigDecimal fillPrice) {
         BigDecimal matchedQuantity = order.getRemainingQuantity();
         BigDecimal actualUsdtValue = matchedQuantity.multiply(fillPrice);
@@ -94,15 +96,25 @@ public class LiveMatchingEngine {
                 walletService.addAvailableBalance(userId, targetAsset, refundAmount);
             }
 
-            // Cộng BTC vào ví
-            walletService.addAvailableBalance(userId, baseAsset, matchedQuantity);
+            // Khấu trừ phí giao dịch Spot (0.1% lượng coin mua được)
+            BigDecimal fee = matchedQuantity.multiply(FEE_RATE);
+            BigDecimal netReceivedCoin = matchedQuantity.subtract(fee);
+
+            // Cộng coin thực nhận (đã trừ phí 0.1%) vào ví
+            walletService.addAvailableBalance(userId, baseAsset, netReceivedCoin);
 
         } else {
             // -- LỆNH BÁN --
             // Với lệnh bán, giải phóng chính xác lượng coin cơ sở (BTC) đã khớp
             BigDecimal lockedBtcValue = matchedQuantity;
             walletService.deductLockedBalance(userId, baseAsset, lockedBtcValue);
-            walletService.addAvailableBalance(userId, targetAsset, actualUsdtValue);
+
+            // Khấu trừ phí giao dịch Spot (0.1% tổng số tiền USDT thu về)
+            BigDecimal fee = actualUsdtValue.multiply(FEE_RATE);
+            BigDecimal netReceivedUsdt = actualUsdtValue.subtract(fee);
+
+            // Cộng USDT thực nhận (đã trừ phí 0.1%) vào ví
+            walletService.addAvailableBalance(userId, targetAsset, netReceivedUsdt);
         }
 
         // --- BƯỚC QUAN TRỌNG: GHI LẠI LỊCH SỬ TRADE ---
