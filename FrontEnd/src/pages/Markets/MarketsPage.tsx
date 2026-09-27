@@ -14,13 +14,13 @@ export const MarketsPage: React.FC = () => {
   const navigate = useNavigate();
   const { markets, fetchMarkets, isLoadingMarkets } = useMarketStore();
 
-  // Navigation Tabs: 'MARKET' (Thị trường) | 'EXPLORE' (Khám phá) | 'TRADING_DATA' (Dữ liệu GD)
-  const [mainTab, setMainTab] = useState<'MARKET' | 'EXPLORE' | 'TRADING_DATA'>('MARKET');
+  // Navigation Tabs: 'OVERVIEW' (Tổng quát) | 'EXPLORE' (Khám phá)
+  const [mainTab, setMainTab] = useState<'OVERVIEW' | 'EXPLORE'>('OVERVIEW');
 
-  // Secondary subcategory for 'MARKET': 'ALL' | 'HOT' | 'GAINERS' | 'LOSERS' | 'NEW' | 'MEME' | 'DEFI' | 'AI'
+  // Secondary subcategory for 'OVERVIEW': 'ALL' | 'HOT' | 'GAINERS' | 'LOSERS' | 'NEW' | 'MEME' | 'DEFI' | 'AI'
   const [marketFilter, setMarketFilter] = useState<string>('ALL');
 
-  // Quick filter for 'TRADING_DATA': 'ALL' | 'POPULAR' | 'GAINERS' | 'LOSERS' | 'VOLUME'
+  // Quick filter for 'EXPLORE': 'ALL' | 'POPULAR' | 'GAINERS' | 'LOSERS' | 'VOLUME'
   const [dataFilter, setDataFilter] = useState<'ALL' | 'POPULAR' | 'GAINERS' | 'LOSERS' | 'VOLUME'>('ALL');
 
   // Search & Sorting for main table
@@ -41,10 +41,6 @@ export const MarketsPage: React.FC = () => {
   // Top Coins Overview state from Backend
   const [topCoins, setTopCoins] = useState<TopCoinsOverview | null>(null);
   const [isLoadingTopCoins, setIsLoadingTopCoins] = useState<boolean>(false);
-
-  // Widget card toggle: Spot vs Futures
-  const [hotTab, setHotTab] = useState<'SPOT' | 'FUTURES'>('SPOT');
-  const [newTab, setNewTab] = useState<'SPOT' | 'FUTURES'>('SPOT');
 
   const toggleFavorite = (symbol: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -114,27 +110,6 @@ export const MarketsPage: React.FC = () => {
     if (val >= 1e9) return `$${(val / 1e9).toFixed(2)} T`;
     if (val >= 1e6) return `$${(val / 1e6).toFixed(2)} Tr`;
     return `$${val.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
-  };
-
-  // Sparkline Generator for table
-  const renderSparkline = (change: number, isPos: boolean) => {
-    const strokeColor = isPos ? '#00c076' : '#ff3b30';
-    const points = isPos
-      ? "0,22 10,20 20,23 30,16 40,18 50,11 60,14 70,8 80,6 90,2"
-      : "0,4 10,6 20,5 30,12 40,9 50,16 60,14 70,20 80,22 90,25";
-
-    return (
-      <svg className="w-24 h-7 overflow-visible inline-block" viewBox="0 0 90 28">
-        <polyline
-          fill="none"
-          stroke={strokeColor}
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          points={points}
-        />
-      </svg>
-    );
   };
 
   // Filter Table Data
@@ -207,7 +182,7 @@ export const MarketsPage: React.FC = () => {
           </h3>
           <button 
             onClick={() => {
-              setMainTab('MARKET');
+              setMainTab('OVERVIEW');
               if (title.includes('tăng')) setMarketFilter('GAINERS');
               else if (title.includes('giảm')) setMarketFilter('LOSERS');
               else setMarketFilter('ALL');
@@ -299,12 +274,12 @@ export const MarketsPage: React.FC = () => {
         <div className="max-w-[1700px] mx-auto px-4 lg:px-8">
           <div className="flex items-center gap-8 py-3">
             <button
-              onClick={() => setMainTab('MARKET')}
+              onClick={() => setMainTab('OVERVIEW')}
               className={`text-base font-bold pb-2 -mb-3 transition-colors relative ${
-                mainTab === 'MARKET' ? 'text-white border-b-2 border-white' : 'text-gray-400 hover:text-white'
+                mainTab === 'OVERVIEW' ? 'text-white border-b-2 border-white' : 'text-gray-400 hover:text-white'
               }`}
             >
-              Thị trường
+              Tổng quát
             </button>
             <button
               onClick={() => setMainTab('EXPLORE')}
@@ -314,14 +289,6 @@ export const MarketsPage: React.FC = () => {
             >
               Khám phá
             </button>
-            <button
-              onClick={() => setMainTab('TRADING_DATA')}
-              className={`text-base font-bold pb-2 -mb-3 transition-colors relative ${
-                mainTab === 'TRADING_DATA' ? 'text-white border-b-2 border-white' : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              Dữ liệu GD
-            </button>
           </div>
         </div>
       </div>
@@ -330,30 +297,20 @@ export const MarketsPage: React.FC = () => {
         {/* ======================================================== */}
         {/* TAB 1: THỊ TRƯỜNG (MARKET OVERVIEW)                      */}
         {/* ======================================================== */}
-        {mainTab === 'MARKET' && (
+        {mainTab === 'OVERVIEW' && (
           <div className="space-y-6">
             {/* Top 4 Widget Cards (Image 1) */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Card 1: Crypto nổi bật */}
               <div className="bg-[#121212] border border-[#222222] rounded-xl p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-bold text-white flex items-center gap-1 cursor-pointer hover:text-amber-400">
+                  <span 
+                    onClick={() => setMainTab('EXPLORE')}
+                    className="text-sm font-bold text-white flex items-center gap-1 cursor-pointer hover:text-amber-400 transition-colors"
+                  >
                     Crypto nổi bật <ChevronRight className="w-3.5 h-3.5" />
                   </span>
-                  <div className="flex bg-[#1c1c1c] rounded-md p-0.5 text-[10px]">
-                    <button 
-                      onClick={() => setHotTab('SPOT')} 
-                      className={`px-2 py-0.5 rounded ${hotTab === 'SPOT' ? 'bg-[#333] text-white font-bold' : 'text-gray-400'}`}
-                    >
-                      Spot
-                    </button>
-                    <button 
-                      onClick={() => setHotTab('FUTURES')} 
-                      className={`px-2 py-0.5 rounded ${hotTab === 'FUTURES' ? 'bg-[#333] text-white font-bold' : 'text-gray-400'}`}
-                    >
-                      Futures
-                    </button>
-                  </div>
+                  <span className="text-[10px] text-gray-500 font-mono">Hot</span>
                 </div>
                 <div className="space-y-2.5">
                   {highlightsCoins.slice(0, 3).map((c) => {
@@ -361,7 +318,7 @@ export const MarketsPage: React.FC = () => {
                     return (
                       <div 
                         key={c.symbol} 
-                        onClick={() => navigate(hotTab === 'FUTURES' ? `/futures/${c.symbol}` : `/trade/${c.symbol}`)}
+                        onClick={() => navigate(`/trade/${c.symbol}`)}
                         className="flex items-center justify-between text-xs cursor-pointer hover:bg-[#1a1a1a] p-1 rounded transition-colors"
                       >
                         <div className="flex items-center gap-2">
@@ -384,23 +341,13 @@ export const MarketsPage: React.FC = () => {
               {/* Card 2: Tài sản mới niêm yết */}
               <div className="bg-[#121212] border border-[#222222] rounded-xl p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-bold text-white flex items-center gap-1 cursor-pointer hover:text-amber-400">
+                  <span 
+                    onClick={() => setMainTab('EXPLORE')}
+                    className="text-sm font-bold text-white flex items-center gap-1 cursor-pointer hover:text-amber-400 transition-colors"
+                  >
                     Tài sản mới niêm yết <ChevronRight className="w-3.5 h-3.5" />
                   </span>
-                  <div className="flex bg-[#1c1c1c] rounded-md p-0.5 text-[10px]">
-                    <button 
-                      onClick={() => setNewTab('SPOT')} 
-                      className={`px-2 py-0.5 rounded ${newTab === 'SPOT' ? 'bg-[#333] text-white font-bold' : 'text-gray-400'}`}
-                    >
-                      Spot
-                    </button>
-                    <button 
-                      onClick={() => setNewTab('FUTURES')} 
-                      className={`px-2 py-0.5 rounded ${newTab === 'FUTURES' ? 'bg-[#333] text-white font-bold' : 'text-gray-400'}`}
-                    >
-                      Futures
-                    </button>
-                  </div>
+                  <span className="text-[10px] text-gray-500 font-mono">Mới</span>
                 </div>
                 <div className="space-y-2.5">
                   {newListingsCoins.slice(0, 3).map((c) => {
@@ -408,7 +355,7 @@ export const MarketsPage: React.FC = () => {
                     return (
                       <div 
                         key={c.symbol} 
-                        onClick={() => navigate(newTab === 'FUTURES' ? `/futures/${c.symbol}` : `/trade/${c.symbol}`)}
+                        onClick={() => navigate(`/trade/${c.symbol}`)}
                         className="flex items-center justify-between text-xs cursor-pointer hover:bg-[#1a1a1a] p-1 rounded transition-colors"
                       >
                         <div className="flex items-center gap-2">
@@ -428,72 +375,76 @@ export const MarketsPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Card 3: Dữ liệu vĩ mô */}
-              <div className="bg-[#121212] border border-[#222222] rounded-xl p-4 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-bold text-white flex items-center gap-1">
-                      Dữ liệu vĩ mô <ChevronRight className="w-3.5 h-3.5" />
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-[10px] text-gray-400 mt-1">
-                    <div>
-                      <div>• Vốn hóa</div>
-                      <div className="font-mono font-bold text-white text-xs mt-0.5">$2.89 NT</div>
-                      <div className="text-[#ff3b30] text-[10px]">-0.15%</div>
-                    </div>
-                    <div>
-                      <div>• Khối lượng</div>
-                      <div className="font-mono font-bold text-white text-xs mt-0.5">$59.23 T</div>
-                      <div className="text-[#ff3b30] text-[10px]">-41.77%</div>
-                    </div>
-                    <div>
-                      <div>Tỷ trọng BTC</div>
-                      <div className="font-mono font-bold text-white text-xs mt-0.5">58.7%</div>
-                    </div>
-                  </div>
+              {/* Card 3: Top tăng giá */}
+              <div className="bg-[#121212] border border-[#222222] rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span 
+                    onClick={() => setMarketFilter('GAINERS')}
+                    className="text-sm font-bold text-white flex items-center gap-1 cursor-pointer hover:text-emerald-400 transition-colors"
+                  >
+                    Top tăng giá <ChevronRight className="w-3.5 h-3.5" />
+                  </span>
+                  <span className="text-[10px] text-gray-500 font-mono">24h</span>
                 </div>
-                {/* Mini trend line SVG */}
-                <div className="mt-2 pt-2 border-t border-[#1e1e1e]">
-                  <svg className="w-full h-8 overflow-visible" viewBox="0 0 100 20">
-                    <polyline
-                      fill="none"
-                      stroke="#ff3b30"
-                      strokeWidth="1.5"
-                      points="0,15 15,14 25,18 40,12 55,16 70,6 85,9 100,18"
-                    />
-                  </svg>
+                <div className="space-y-2.5">
+                  {gainersCoins.slice(0, 3).map((c) => {
+                    const isPos = (c.priceChangePercent || 0) >= 0;
+                    return (
+                      <div 
+                        key={c.symbol} 
+                        onClick={() => navigate(`/trade/${c.symbol}`)}
+                        className="flex items-center justify-between text-xs cursor-pointer hover:bg-[#1a1a1a] p-1 rounded transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <CoinIcon symbol={c.symbol} size="xs" />
+                          <span className="font-bold text-white">{c.baseCurrency || c.symbol.replace('USDT', '')}</span>
+                          <span className="text-[10px] text-gray-500">/USDT</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-mono text-white mr-2">${formatPrice(c.currentPrice)}</span>
+                          <span className={`font-mono text-[11px] ${isPos ? 'text-[#00c076]' : 'text-[#ff3b30]'}`}>
+                            {isPos ? '+' : ''}{(c.priceChangePercent || 0).toFixed(2)}%
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Card 4: Dòng vốn BTC ETF */}
-              <div className="bg-[#121212] border border-[#222222] rounded-xl p-4 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-bold text-white flex items-center gap-1">
-                      Dòng vốn BTC ETF <ChevronRight className="w-3.5 h-3.5" />
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-[10px] text-gray-400 mt-1">
-                    <div>
-                      <div>Ròng/ngày</div>
-                      <div className="font-mono font-bold text-[#ff3b30] text-xs mt-0.5">-$11.80 Tr</div>
-                    </div>
-                    <div>
-                      <div>30D trước</div>
-                      <div className="font-mono font-bold text-[#ff3b30] text-xs mt-0.5">-$56.80 Tr</div>
-                    </div>
-                  </div>
+              {/* Card 4: Top vốn hóa */}
+              <div className="bg-[#121212] border border-[#222222] rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <span 
+                    onClick={() => { setMainTab('EXPLORE'); setDataFilter('ALL'); }}
+                    className="text-sm font-bold text-white flex items-center gap-1 cursor-pointer hover:text-purple-400 transition-colors"
+                  >
+                    Top vốn hóa <ChevronRight className="w-3.5 h-3.5" />
+                  </span>
+                  <span className="text-[10px] text-gray-500 font-mono">Vốn hóa</span>
                 </div>
-                {/* Mini bar chart SVG */}
-                <div className="mt-2 pt-2 border-t border-[#1e1e1e] flex items-end justify-between h-8 px-2 gap-1">
-                  {[4, -2, 6, -5, 8, -3, -7, 5, -8, 2, -6, 9].map((val, i) => (
-                    <div
-                      key={i}
-                      className={`w-1 rounded-sm ${val > 0 ? 'bg-[#00c076]' : 'bg-[#ff3b30]'}`}
-                      style={{ height: `${Math.abs(val) * 3}px` }}
-                    />
-                  ))}
+                <div className="space-y-2.5">
+                  {topMarketCapCoins.slice(0, 3).map((c) => {
+                    return (
+                      <div 
+                        key={c.symbol} 
+                        onClick={() => navigate(`/trade/${c.symbol}`)}
+                        className="flex items-center justify-between text-xs cursor-pointer hover:bg-[#1a1a1a] p-1 rounded transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <CoinIcon symbol={c.symbol} size="xs" />
+                          <span className="font-bold text-white">{c.baseCurrency || c.symbol.replace('USDT', '')}</span>
+                          <span className="text-[10px] text-gray-500">/USDT</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-mono font-medium text-white mr-2">${formatPrice(c.currentPrice)}</span>
+                          <span className="font-mono text-[11px] text-purple-400">
+                            {formatMarketCap(c.marketCap, c.currentPrice)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -609,8 +560,6 @@ export const MarketsPage: React.FC = () => {
                           <ArrowUpDown className="w-3 h-3 text-gray-500" />
                         </div>
                       </th>
-                      <th className="py-3 px-4 text-center hidden md:table-cell">24h trước</th>
-                      <th className="py-3 px-4 text-center hidden lg:table-cell">Phạm vi 24h</th>
                       <th 
                         onClick={() => handleSort('volume24h')} 
                         className="py-3 px-4 cursor-pointer hover:text-white transition-colors text-right"
@@ -628,14 +577,14 @@ export const MarketsPage: React.FC = () => {
                     {isLoadingMarkets && markets.length === 0 ? (
                       [1, 2, 3, 4, 5, 6].map((i) => (
                         <tr key={i} className="animate-pulse">
-                          <td colSpan={8} className="py-4 px-4">
+                          <td colSpan={6} className="py-4 px-4">
                             <div className="h-6 bg-[#222222]/50 rounded"></div>
                           </td>
                         </tr>
                       ))
                     ) : filteredMarkets.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="py-12 text-center text-gray-500">
+                        <td colSpan={6} className="py-12 text-center text-gray-500">
                           Không tìm thấy cặp giao dịch phù hợp.
                         </td>
                       </tr>
@@ -644,10 +593,6 @@ export const MarketsPage: React.FC = () => {
                         const isFav = favorites.includes(m.symbol);
                         const isPos = (m.priceChange || 0) >= 0;
                         const base = m.symbol.replace('USDT', '');
-                        const low = m.lowPrice || (m.currentPrice ? m.currentPrice * 0.97 : 0);
-                        const high = m.highPrice || (m.currentPrice ? m.currentPrice * 1.03 : 0);
-                        const current = m.currentPrice || low;
-                        const rangePct = high > low ? Math.max(0, Math.min(100, ((current - low) / (high - low)) * 100)) : 50;
 
                         return (
                           <tr
@@ -688,27 +633,6 @@ export const MarketsPage: React.FC = () => {
                               </span>
                             </td>
 
-                            {/* 24h trước (Sparkline) */}
-                            <td className="py-3.5 px-4 text-center hidden md:table-cell">
-                              {renderSparkline(m.priceChange || 0, isPos)}
-                            </td>
-
-                            {/* Phạm vi 24h */}
-                            <td className="py-3.5 px-4 text-center hidden lg:table-cell">
-                              <div className="w-36 mx-auto">
-                                <div className="flex justify-between text-[9px] text-gray-500 font-mono mb-1">
-                                  <span>${formatPrice(low)}</span>
-                                  <span>${formatPrice(high)}</span>
-                                </div>
-                                <div className="h-1 bg-[#262626] rounded-full relative">
-                                  <div 
-                                    className="absolute -top-1 w-2.5 h-2.5 bg-white rounded-full border border-black shadow"
-                                    style={{ left: `calc(${rangePct}% - 5px)` }}
-                                  />
-                                </div>
-                              </div>
-                            </td>
-
                             {/* Vốn hoá thị trường */}
                             <td className="py-3.5 px-4 text-right font-mono text-gray-300 text-xs">
                               {formatMarketCap(m.volume24h * 15, m.currentPrice)}
@@ -743,9 +667,9 @@ export const MarketsPage: React.FC = () => {
         )}
 
         {/* ======================================================== */}
-        {/* TAB 3: DỮ LIỆU GIAO DỊCH (TRADING DATA - Image 2)        */}
+        {/* TAB 2: KHÁM PHÁ (EXPLORE)                                */}
         {/* ======================================================== */}
-        {mainTab === 'TRADING_DATA' && (
+        {mainTab === 'EXPLORE' && (
           <div className="space-y-6">
             {/* Quick Filter Buttons (top phổ biến | top tăng giá | top giảm giá | top volume) */}
             <div className="flex items-center gap-3 overflow-x-auto pb-2 text-xs">
@@ -796,25 +720,6 @@ export const MarketsPage: React.FC = () => {
                 renderDataCard('Giá trị cao nhất', topVolumeCoins, 'Giá trị 24h', 'Giá | Thay đổi', 'volume')
               )}
             </div>
-          </div>
-        )}
-
-        {/* ======================================================== */}
-        {/* TAB 2: KHÁM PHÁ (EXPLORE)                                */}
-        {/* ======================================================== */}
-        {mainTab === 'EXPLORE' && (
-          <div className="py-12 text-center space-y-4">
-            <Sparkles className="w-12 h-12 text-amber-400 mx-auto" />
-            <h2 className="text-xl font-bold text-white">Khám Phá Dự Án Tiềm Năng & Xu Hướng Web3</h2>
-            <p className="text-sm text-gray-400 max-w-md mx-auto">
-              Theo dõi tin tức, sự kiện Airdrop, các đợt mở khóa Token (Token Unlock) và hệ sinh thái nổi bật.
-            </p>
-            <button
-              onClick={() => setMainTab('TRADING_DATA')}
-              className="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded-lg text-xs transition-colors"
-            >
-              Xem Dữ Liệu Giao Dịch
-            </button>
           </div>
         )}
       </div>
