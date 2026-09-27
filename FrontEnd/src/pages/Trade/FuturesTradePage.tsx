@@ -58,6 +58,7 @@ export const FuturesTradePage: React.FC = () => {
   // Đồng bộ đòn bẩy khi đổi symbol hoặc khi có vị thế thực tế của cặp này từ backend
   useEffect(() => {
     setSelectedSymbol(symbol);
+    setSelectedBookPrice(null);
 
     // 1. Kiểm tra cache localStorage của symbol
     const saved = localStorage.getItem(`futures_leverage_${symbol}`);

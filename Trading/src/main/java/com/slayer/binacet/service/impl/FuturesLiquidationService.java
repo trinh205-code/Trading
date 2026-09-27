@@ -60,6 +60,16 @@ public class FuturesLiquidationService {
                 ? markPrice.compareTo(liquidationPrice) <= 0
                 : markPrice.compareTo(liquidationPrice) >= 0;
 
+        // BẢO VỆ DỰ PHÒNG: Nếu vị thế đang lỗ vượt quá số tiền ký quỹ thực tế (PnL <= -lockedUserMargin),
+        // lập tức kích hoạt thanh lý ngay, tránh việc giá thanh lý bị tính sai dẫn đến gồng lỗ âm vào sàn
+        BigDecimal unrealizedPnl = pnlService.calculateUnrealizedPnl(position, markPrice);
+        BigDecimal margin = position.getLockedUserMargin() != null ? position.getLockedUserMargin() : BigDecimal.ZERO;
+        if (!hitLiquidation && margin.compareTo(BigDecimal.ZERO) > 0 && unrealizedPnl.compareTo(margin.negate()) <= 0) {
+            log.warn("⚠️ Vị thế {} symbol {} đang lỗ {} vượt quá toàn bộ ký quỹ {}. Kích hoạt thanh lý bảo vệ.",
+                    position.getId(), symbol, unrealizedPnl, margin);
+            hitLiquidation = true;
+        }
+
         if (hitLiquidation) {
             forceLiquidate(position, markPrice);
         } else {

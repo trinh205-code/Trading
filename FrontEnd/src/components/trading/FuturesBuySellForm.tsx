@@ -210,9 +210,27 @@ export const FuturesBuySellForm: React.FC<FuturesBuySellFormProps> = ({
     const priceVal = parseFloat(price);
     const qtyVal = parseFloat(quantity);
 
-    if (orderType === 'LIMIT' && (!priceVal || priceVal <= 0)) {
-      setFeedback({ type: 'error', message: 'Vui lòng nhập giá hợp lệ.' });
-      return;
+    if (orderType === 'LIMIT') {
+      if (!priceVal || priceVal <= 0) {
+        setFeedback({ type: 'error', message: 'Vui lòng nhập giá hợp lệ.' });
+        return;
+      }
+      if (currentPrice && currentPrice > 0) {
+        if (side === 'BUY' && priceVal > currentPrice * 1.1) {
+          setFeedback({
+            type: 'error',
+            message: `Giá mua (${priceVal}) không được cao hơn 10% so với giá thị trường (${currentPrice}).`,
+          });
+          return;
+        }
+        if (side === 'SELL' && priceVal < currentPrice * 0.9) {
+          setFeedback({
+            type: 'error',
+            message: `Giá bán (${priceVal}) không được thấp hơn 10% so với giá thị trường (${currentPrice}).`,
+          });
+          return;
+        }
+      }
     }
 
     if (!qtyVal || qtyVal <= 0) {

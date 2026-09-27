@@ -59,14 +59,32 @@ public class FuturesOrderServiceImpl implements FuturesOrderService {
 
         // 1. Tính toán giá ký quỹ
         BigDecimal priceToCalculate;
-        if (request.getOrderType() == FuturesOrderType.MARKET) {
-            priceToCalculate = futuresMarketSyncService.getMarkPrice(request.getSymbol());
+        BigDecimal markPrice = futuresMarketSyncService.getMarkPrice(request.getSymbol());
 
+        if (request.getOrderType() == FuturesOrderType.MARKET) {
+            priceToCalculate = markPrice;
+            if (priceToCalculate == null || priceToCalculate.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new RuntimeException("Chưa có giá thị trường hợp lệ cho " + request.getSymbol());
+            }
         } else {
-            // để validate không cho đặt giá quá xa (chống fat-finger)
             priceToCalculate = request.getPrice();
             if (priceToCalculate == null || priceToCalculate.compareTo(BigDecimal.ZERO) <= 0) {
                 throw new RuntimeException("Lệnh LIMIT bắt buộc phải có giá hợp lệ");
+            }
+
+            // Kiểm tra chống đặt giá quá xa (PERCENT_PRICE Filter - tối đa lệch 10% để chống fat-finger hoặc gian lận đòn bẩy)
+            if (markPrice != null && markPrice.compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal maxBuyPrice = markPrice.multiply(new BigDecimal("1.10"));
+                BigDecimal minSellPrice = markPrice.multiply(new BigDecimal("0.90"));
+
+                if (request.getSide() == OrderSide.BUY && priceToCalculate.compareTo(maxBuyPrice) > 0) {
+                    throw new RuntimeException("Giá đặt mua (" + priceToCalculate.stripTrailingZeros().toPlainString()
+                            + ") không được cao hơn 10% so với giá thị trường (" + markPrice.stripTrailingZeros().toPlainString() + ")");
+                }
+                if (request.getSide() == OrderSide.SELL && priceToCalculate.compareTo(minSellPrice) < 0) {
+                    throw new RuntimeException("Giá đặt bán (" + priceToCalculate.stripTrailingZeros().toPlainString()
+                            + ") không được thấp hơn 10% so với giá thị trường (" + markPrice.stripTrailingZeros().toPlainString() + ")");
+                }
             }
 
             // Kiểm tra không cho đặt lệnh LIMIT vượt qua giá thanh lý của vị thế đang mở
@@ -98,7 +116,13 @@ public class FuturesOrderServiceImpl implements FuturesOrderService {
             }
         }
 
-        BigDecimal notionalValue = request.getQuantity().multiply(priceToCalculate);
+        // Tính ký quỹ cần khóa: Luôn dùng mức giá cao nhất có thể khớp để không bao giờ bị thiếu ký quỹ thực tế
+        BigDecimal effectivePriceForMargin = priceToCalculate;
+        if (markPrice != null && markPrice.compareTo(BigDecimal.ZERO) > 0) {
+            effectivePriceForMargin = effectivePriceForMargin.max(markPrice);
+        }
+
+        BigDecimal notionalValue = request.getQuantity().multiply(effectivePriceForMargin);
         BigDecimal requiredMargin = notionalValue.divide(request.getLeverage(), 18, RoundingMode.HALF_UP);
 
         // 2. Khóa Margin trong Ví
@@ -135,7 +159,8 @@ public class FuturesOrderServiceImpl implements FuturesOrderService {
             matchingEngineService.matchFuturesOrder(savedOrder.getId());
 
         } else if (request.getOrderType() == FuturesOrderType.LIMIT) {
-            // Treo lên Sổ lệnh bằng cách đẩy vào Kafka
+            // Treo lên Sổ lệnh bằng cách đẩy vào
+            // Kafka
             OrderEvent event = OrderEvent.builder()
                     .orderId(savedOrder.getId())
                     .symbol(savedOrder.getInstrument().getSymbol())
