@@ -525,12 +525,6 @@ export const MarketsPage: React.FC = () => {
               {[
                 { id: 'FAVORITES', label: 'Yêu thích' },
                 { id: 'CRYPTO', label: 'Tiền mã hóa' },
-                { id: 'SPOT', label: 'Spot' },
-                { id: 'FUTURES', label: 'Futures' },
-                { id: 'STOCKS', label: 'Cổ phiếu' },
-                { id: 'ETF', label: 'ETF' },
-                { id: 'COMMODITIES', label: 'Hàng hóa' },
-                { id: 'DEX', label: 'DEX' },
               ].map(cat => (
                 <button
                   key={cat.id}
