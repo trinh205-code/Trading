@@ -7,12 +7,12 @@ public enum PaymentGateway {
     MOMO;
 
     @JsonCreator
-    public static PaymentStatus from(String value) {
+    public static PaymentGateway from(String value) {
         try {
-            return PaymentStatus.valueOf(value.toUpperCase());
+            return PaymentGateway.valueOf(value.toUpperCase());
         } catch (Exception e) {
             throw new IllegalArgumentException(
-                    "Status must be one of: PENDING, SUCCESS, FAILED"
+                    "Gateway must be one of: VNPAY, MOMO"
             );
         }
     }

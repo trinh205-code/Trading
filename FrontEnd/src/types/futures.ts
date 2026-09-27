@@ -120,6 +120,7 @@ export interface FuturesTradeResponse {
   feeAmount: number;
   isMaker: boolean;
   timestamp: string;
+  createdAt?: string;
 }
 
 export interface FuturesPositionHistoryResponse {

@@ -41,8 +41,15 @@ public class VnPayService {
         vnp_Params.put("vnp_Amount", String.valueOf(amount));
         vnp_Params.put("vnp_CurrCode", "VND");
 
-        // Bạn có thể lấy bankCode từ request nếu có, ở đây mình để trống cho ra cổng chọn bank
-//         vnp_Params.put("vnp_BankCode", bankCode);
+        if (payment.getBankCode() != null && !payment.getBankCode().trim().isEmpty()) {
+            vnp_Params.put("vnp_BankCode", payment.getBankCode().trim());
+        }
+
+        String orderInfo = payment.getOrderInfo();
+        if (orderInfo == null || orderInfo.trim().isEmpty()) {
+            orderInfo = "Mua USDT ma don hang " + vnp_TxnRef;
+        }
+        vnp_Params.put("vnp_OrderInfo", orderInfo);
 
         vnp_Params.put("vnp_TxnRef", vnp_TxnRef);
         vnp_Params.put("vnp_OrderType", "other");
@@ -72,11 +79,11 @@ public class VnPayService {
                 //Build hash data
                 hashData.append(fieldName);
                 hashData.append('=');
-                hashData.append(URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII));
+                hashData.append(URLEncoder.encode(fieldValue, StandardCharsets.UTF_8));
                 //Build query
-                query.append(URLEncoder.encode(fieldName, StandardCharsets.US_ASCII));
+                query.append(URLEncoder.encode(fieldName, StandardCharsets.UTF_8));
                 query.append('=');
-                query.append(URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII));
+                query.append(URLEncoder.encode(fieldValue, StandardCharsets.UTF_8));
                 if (itr.hasNext()) {
                     query.append('&');
                     hashData.append('&');
@@ -190,7 +197,7 @@ public class VnPayService {
             if ((fieldValue != null) && (fieldValue.length() > 0)) {
                 hashData.append(fieldName);
                 hashData.append('=');
-                hashData.append(URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII));
+                hashData.append(URLEncoder.encode(fieldValue, StandardCharsets.UTF_8));
                 if (itr.hasNext()) {
                     hashData.append('&');
                 }

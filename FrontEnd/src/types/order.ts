@@ -47,4 +47,5 @@ export interface TradeResponse {
   feeAmount: number;
   executionVenue?: string;
   timestamp: string;
+  createdAt?: string;
 }

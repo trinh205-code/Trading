@@ -65,7 +65,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/market/**").permitAll()
                         .requestMatchers("/ws/**").permitAll() // WebSocket
-                        .requestMatchers("/error").permitAll() // THÊM DÒNG NÀY ĐỂ BẮT ĐƯỢC LỖI THẬT
+                        .requestMatchers("/error").permitAll()
+                        .requestMatchers("/api/payment/vnpay-return", "/api/v1/payment/vnpay-return").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/futures/instruments/**").permitAll()
                         .anyRequest().authenticated()
                 )
