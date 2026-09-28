@@ -9,6 +9,7 @@ import com.slayer.binacet.dto.response.FuturesOrderResponse;
 import com.slayer.binacet.entity.*;
 import com.slayer.binacet.event.FuturesOrderProducer;
 import com.slayer.binacet.mapper.FuturesOrderMapper;
+import com.slayer.binacet.mapper.OrderEventMapper;
 import com.slayer.binacet.repository.*;
 import com.slayer.binacet.service.FuturesOrderService;
 import com.slayer.binacet.service.FuturesPnLService;
@@ -26,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -38,6 +40,7 @@ public class FuturesOrderServiceImpl implements FuturesOrderService {
     private final FuturesPositionRepository futuresPositionRepository;
     private final FuturesPnLService futuresPnLService;
     private final FuturesOrderMapper futuresOrderMapper;
+    private final OrderEventMapper orderEventMapper;
     private final FuturesMatchingServiceImpl matchingEngineService;
     private final FuturesMarketSyncService futuresMarketSyncService;
 
@@ -57,169 +60,155 @@ public class FuturesOrderServiceImpl implements FuturesOrderService {
             throw new RuntimeException("Cặp giao dịch này hiện không khả dụng để giao dịch");
         }
 
-        // 1. Tính toán giá ký quỹ
-        BigDecimal priceToCalculate;
+        BigDecimal priceToCalculate = validateAndCalculateOrderPrice(request, instrument, user);
+        validateAndProcessMargin(request, instrument, user, priceToCalculate);
+
+        FuturesOrder order = futuresOrderMapper.toEntity(request, user, instrument, priceToCalculate);
+        FuturesOrder savedOrder = futuresOrderRepository.save(order);
+
+        dispatchOrder(savedOrder);
+
+        return futuresOrderMapper.toResponse(savedOrder);
+    }
+
+    private BigDecimal validateAndCalculateOrderPrice(CreateFuturesOrderRequest request, FuturesInstrument instrument, User user) {
         BigDecimal markPrice = futuresMarketSyncService.getMarkPrice(request.getSymbol());
 
         if (request.getOrderType() == FuturesOrderType.MARKET) {
-            priceToCalculate = markPrice;
-            if (priceToCalculate == null || priceToCalculate.compareTo(BigDecimal.ZERO) <= 0) {
+            if (markPrice == null || markPrice.compareTo(BigDecimal.ZERO) <= 0) {
                 throw new RuntimeException("Chưa có giá thị trường hợp lệ cho " + request.getSymbol());
             }
-        } else {
-            priceToCalculate = request.getPrice();
-            if (priceToCalculate == null || priceToCalculate.compareTo(BigDecimal.ZERO) <= 0) {
-                throw new RuntimeException("Lệnh LIMIT bắt buộc phải có giá hợp lệ");
-            }
-
-            // Kiểm tra chống đặt giá quá xa (PERCENT_PRICE Filter - tối đa lệch 10% để chống fat-finger hoặc gian lận đòn bẩy)
-            if (markPrice != null && markPrice.compareTo(BigDecimal.ZERO) > 0) {
-                BigDecimal maxBuyPrice = markPrice.multiply(new BigDecimal("1.10"));
-                BigDecimal minSellPrice = markPrice.multiply(new BigDecimal("0.90"));
-
-                if (request.getSide() == OrderSide.BUY && priceToCalculate.compareTo(maxBuyPrice) > 0) {
-                    throw new RuntimeException("Giá đặt mua (" + priceToCalculate.stripTrailingZeros().toPlainString()
-                            + ") không được cao hơn 10% so với giá thị trường (" + markPrice.stripTrailingZeros().toPlainString() + ")");
-                }
-                if (request.getSide() == OrderSide.SELL && priceToCalculate.compareTo(minSellPrice) < 0) {
-                    throw new RuntimeException("Giá đặt bán (" + priceToCalculate.stripTrailingZeros().toPlainString()
-                            + ") không được thấp hơn 10% so với giá thị trường (" + markPrice.stripTrailingZeros().toPlainString() + ")");
-                }
-            }
-
-            // Kiểm tra không cho đặt lệnh LIMIT vượt qua giá thanh lý của vị thế đang mở
-            FuturesPosition existingPosition = futuresPositionRepository
-                    .findByUser_IdAndInstrument_Symbol(user.getId(), instrument.getSymbol())
-                    .orElse(null);
-
-            if (existingPosition != null && existingPosition.getActivePos() != null
-                    && existingPosition.getActivePos().compareTo(BigDecimal.ZERO) != 0) {
-
-                BigDecimal mmr = instrument.getMaintenanceMarginRate() != null
-                        ? instrument.getMaintenanceMarginRate()
-                        : new BigDecimal("0.005");
-                BigDecimal liqPrice = existingPosition.getLiquidationPrice() != null
-                        ? existingPosition.getLiquidationPrice()
-                        : futuresPnLService.calculateLiquidationPrice(existingPosition, mmr);
-
-                if (liqPrice != null && liqPrice.compareTo(BigDecimal.ZERO) > 0) {
-                    boolean isLong = existingPosition.getActivePos().signum() > 0;
-                    if (isLong && request.getSide() == OrderSide.SELL && priceToCalculate.compareTo(liqPrice) <= 0) {
-                        throw new RuntimeException("Giá đặt lệnh không thể thấp hơn hoặc bằng giá thanh lý ("
-                                + liqPrice.setScale(2, RoundingMode.HALF_UP) + ") của vị thế Long");
-                    }
-                    if (!isLong && request.getSide() == OrderSide.BUY && priceToCalculate.compareTo(liqPrice) >= 0) {
-                        throw new RuntimeException("Giá đặt lệnh không thể cao hơn hoặc bằng giá thanh lý ("
-                                + liqPrice.setScale(2, RoundingMode.HALF_UP) + ") của vị thế Short");
-                    }
-                }
-            }
+            return markPrice;
         }
 
-        // Tính ký quỹ cần khóa: Luôn dùng mức giá cao nhất có thể khớp để không bao giờ bị thiếu ký quỹ thực tế
-        BigDecimal effectivePriceForMargin = priceToCalculate;
-        if (markPrice != null && markPrice.compareTo(BigDecimal.ZERO) > 0) {
-            effectivePriceForMargin = effectivePriceForMargin.max(markPrice);
+        BigDecimal limitPrice = request.getPrice();
+        if (limitPrice == null || limitPrice.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new RuntimeException("Lệnh LIMIT bắt buộc phải có giá hợp lệ");
         }
 
-        BigDecimal notionalValue = request.getQuantity().multiply(effectivePriceForMargin);
-        BigDecimal requiredMargin = notionalValue.divide(request.getLeverage(), 18, RoundingMode.HALF_UP);
+        validatePriceBand(request, limitPrice, markPrice);
+        validateAgainstLiquidationPrice(request, instrument, user, limitPrice);
 
-        // 2. Khóa Margin trong Ví
-        FuturesWallet wallet = futuresWalletRepository.findForUpdate(user.getId(), instrument.getMarginCurrencyShortName())
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy ví Futures"));
+        return limitPrice;
+    }
 
+    private void validatePriceBand(CreateFuturesOrderRequest request, BigDecimal price, BigDecimal markPrice) {
+        if (markPrice == null || markPrice.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+        BigDecimal maxBuyPrice = markPrice.multiply(new BigDecimal("1.10"));
+        BigDecimal minSellPrice = markPrice.multiply(new BigDecimal("0.90"));
+
+        if (request.getSide() == OrderSide.BUY && price.compareTo(maxBuyPrice) > 0) {
+            throw new RuntimeException("Giá đặt mua (" + price.stripTrailingZeros().toPlainString()
+                    + ") không được cao hơn 10% so với giá thị trường (" + markPrice.stripTrailingZeros().toPlainString() + ")");
+        }
+        if (request.getSide() == OrderSide.SELL && price.compareTo(minSellPrice) < 0) {
+            throw new RuntimeException("Giá đặt bán (" + price.stripTrailingZeros().toPlainString()
+                    + ") không được thấp hơn 10% so với giá thị trường (" + markPrice.stripTrailingZeros().toPlainString() + ")");
+        }
+    }
+
+    private void validateAgainstLiquidationPrice(CreateFuturesOrderRequest request, FuturesInstrument instrument, User user, BigDecimal price) {
+        FuturesPosition existingPosition = futuresPositionRepository
+                .findByUser_IdAndInstrument_Symbol(user.getId(), instrument.getSymbol())
+                .orElse(null);
+
+        if (existingPosition == null || existingPosition.getActivePos() == null
+                || existingPosition.getActivePos().compareTo(BigDecimal.ZERO) == 0) {
+            return;
+        }
+
+        BigDecimal mmr = instrument.getMaintenanceMarginRate() != null
+                ? instrument.getMaintenanceMarginRate()
+                : new BigDecimal("0.005");
+        BigDecimal liqPrice = existingPosition.getLiquidationPrice() != null
+                ? existingPosition.getLiquidationPrice()
+                : futuresPnLService.calculateLiquidationPrice(existingPosition, mmr);
+
+        if (liqPrice != null && liqPrice.compareTo(BigDecimal.ZERO) > 0) {
+            boolean isLong = existingPosition.getActivePos().signum() > 0;
+            if (isLong && request.getSide() == OrderSide.SELL && price.compareTo(liqPrice) <= 0) {
+                throw new RuntimeException("Giá đặt lệnh không thể thấp hơn hoặc bằng giá thanh lý ("
+                        + liqPrice.setScale(2, RoundingMode.HALF_UP) + ") của vị thế Long");
+            }
+            if (!isLong && request.getSide() == OrderSide.BUY && price.compareTo(liqPrice) >= 0) {
+                throw new RuntimeException("Giá đặt lệnh không thể cao hơn hoặc bằng giá thanh lý ("
+                        + liqPrice.setScale(2, RoundingMode.HALF_UP) + ") của vị thế Short");
+            }
+        }
+    }
+
+    private void validateAndProcessMargin(CreateFuturesOrderRequest request, FuturesInstrument instrument, User user, BigDecimal priceToCalculate) {
         if (!request.isReduceOnly()) {
-            // Chỉ kiểm tra và khóa ví nếu đây là lệnh MỞ vị thế thông thường
+            BigDecimal markPrice = futuresMarketSyncService.getMarkPrice(request.getSymbol());
+            BigDecimal effectivePrice = priceToCalculate;
+            if (markPrice != null && markPrice.compareTo(BigDecimal.ZERO) > 0) {
+                effectivePrice = effectivePrice.max(markPrice);
+            }
+            BigDecimal notionalValue = request.getQuantity().multiply(effectivePrice);
+            BigDecimal requiredMargin = notionalValue.divide(request.getLeverage(), 18, RoundingMode.HALF_UP);
+
+            FuturesWallet wallet = futuresWalletRepository.findForUpdate(user.getId(), instrument.getMarginCurrencyShortName())
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy ví Futures"));
+
             if (wallet.getAvailableMargin().compareTo(requiredMargin) < 0) {
                 throw new RuntimeException("Số dư khả dụng không đủ để đặt lệnh");
             }
             futuresWalletService.lockMargin(user.getId(), instrument.getMarginCurrencyShortName(), requiredMargin);
         } else {
-            // Kiểm tra nghiêm ngặt lệnh ĐÓNG vị thế (reduceOnly / Exit)
-            FuturesPosition position = futuresPositionRepository
-                    .findByUser_IdAndInstrument_Symbol(user.getId(), instrument.getSymbol())
-                    .orElse(null);
+            validateReduceOnlyOrder(request, instrument, user);
+        }
+    }
 
-            if (position == null || position.getActivePos() == null || position.getActivePos().compareTo(BigDecimal.ZERO) == 0) {
-                throw new RuntimeException("Bạn không có vị thế mở nào cho " + instrument.getSymbol() + " để đóng");
-            }
+    private void validateReduceOnlyOrder(CreateFuturesOrderRequest request, FuturesInstrument instrument, User user) {
+        FuturesPosition position = futuresPositionRepository
+                .findByUser_IdAndInstrument_Symbol(user.getId(), instrument.getSymbol())
+                .orElse(null);
 
-            BigDecimal activePosAbs = position.getActivePos().abs();
-            boolean isLong = position.getActivePos().signum() > 0;
-
-            if ((isLong && request.getSide() != OrderSide.SELL) || (!isLong && request.getSide() != OrderSide.BUY)) {
-                throw new RuntimeException("Chiều đóng vị thế không hợp lệ. Vị thế hiện tại là "
-                        + (isLong ? "LONG (Bán để đóng)" : "SHORT (Mua để đóng)"));
-            }
-
-            // Tính tổng khối lượng các lệnh đóng đang chờ khớp (OPEN hoặc PARTIALLY_FILLED)
-            java.util.List<FuturesOrderStatus> activeStatuses = java.util.List.of(FuturesOrderStatus.OPEN, FuturesOrderStatus.PARTIALLY_FILLED);
-            java.util.List<FuturesOrder> existingActiveOrders = futuresOrderRepository
-                    .findByUser_IdAndInstrument_SymbolAndStatusIn(user.getId(), instrument.getSymbol(), activeStatuses);
-
-            BigDecimal pendingClosingQty = existingActiveOrders.stream()
-                    .filter(o -> ("exit".equalsIgnoreCase(o.getStage()) || "tpsl_exit".equalsIgnoreCase(o.getStage()))
-                            && o.getSide() == request.getSide())
-                    .map(o -> o.getRemainingQuantity() != null ? o.getRemainingQuantity() : BigDecimal.ZERO)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-            BigDecimal availablePosToClose = activePosAbs.subtract(pendingClosingQty);
-            if (availablePosToClose.compareTo(BigDecimal.ZERO) <= 0) {
-                throw new RuntimeException("Toàn bộ vị thế (" + activePosAbs.stripTrailingZeros().toPlainString()
-                        + " " + (instrument.getBaseAsset() != null ? instrument.getBaseAsset() : "") + ") đã được đặt trong các lệnh đóng chờ khớp. Không thể đặt thêm lệnh đóng.");
-            }
-
-            if (request.getQuantity().compareTo(availablePosToClose) > 0) {
-                throw new RuntimeException("Khối lượng đóng (" + request.getQuantity().stripTrailingZeros().toPlainString()
-                        + ") vượt quá vị thế khả dụng để đóng (" + availablePosToClose.stripTrailingZeros().toPlainString()
-                        + " " + (instrument.getBaseAsset() != null ? instrument.getBaseAsset() : "") + "). Vị thế: " + activePosAbs.stripTrailingZeros().toPlainString()
-                        + ", Đang chờ khớp: " + pendingClosingQty.stripTrailingZeros().toPlainString());
-            }
+        if (position == null || position.getActivePos() == null || position.getActivePos().compareTo(BigDecimal.ZERO) == 0) {
+            throw new RuntimeException("Bạn không có vị thế mở nào cho " + instrument.getSymbol() + " để đóng");
         }
 
-        FuturesOrder order = futuresOrderMapper.toEntity(request);
-        order.setUser(user);
-        order.setInstrument(instrument);
-        order.setStatus(FuturesOrderStatus.OPEN);
-        order.setMarginCurrencyShortName(instrument.getMarginCurrencyShortName());
-        order.setStage(request.isReduceOnly() ? "exit" : "default");
-        order.setCreatedAt(Instant.now());
-        order.setUpdatedAt(Instant.now());
+        BigDecimal activePosAbs = position.getActivePos().abs();
+        boolean isLong = position.getActivePos().signum() > 0;
 
-        order.setTotalQuantity(request.getQuantity());
-        order.setRemainingQuantity(request.getQuantity());
-        order.setExecutedQuantity(BigDecimal.ZERO);
+        if ((isLong && request.getSide() != OrderSide.SELL) || (!isLong && request.getSide() != OrderSide.BUY)) {
+            throw new RuntimeException("Chiều đóng vị thế không hợp lệ. Vị thế hiện tại là "
+                    + (isLong ? "LONG (Bán để đóng)" : "SHORT (Mua để đóng)"));
+        }
 
-        order.setPrice(priceToCalculate);
+        List<FuturesOrderStatus> activeStatuses = List.of(FuturesOrderStatus.OPEN, FuturesOrderStatus.PARTIALLY_FILLED);
+        List<FuturesOrder> existingActiveOrders = futuresOrderRepository
+                .findByUser_IdAndInstrument_SymbolAndStatusIn(user.getId(), instrument.getSymbol(), activeStatuses);
 
+        BigDecimal pendingClosingQty = existingActiveOrders.stream()
+                .filter(o -> ("exit".equalsIgnoreCase(o.getStage()) || "tpsl_exit".equalsIgnoreCase(o.getStage()))
+                        && o.getSide() == request.getSide())
+                .map(o -> o.getRemainingQuantity() != null ? o.getRemainingQuantity() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        FuturesOrder savedOrder = futuresOrderRepository.save(order);
+        BigDecimal availablePosToClose = activePosAbs.subtract(pendingClosingQty);
+        if (availablePosToClose.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new RuntimeException("Toàn bộ vị thế (" + activePosAbs.stripTrailingZeros().toPlainString()
+                    + " " + (instrument.getBaseAsset() != null ? instrument.getBaseAsset() : "") + ") đã được đặt trong các lệnh đóng chờ khớp. Không thể đặt thêm lệnh đóng.");
+        }
 
-        // 4. PHÂN LUỒNG XỬ LÝ
-        if (request.getOrderType() == FuturesOrderType.MARKET) {
-            matchingEngineService.matchFuturesOrder(savedOrder.getId());
+        if (request.getQuantity().compareTo(availablePosToClose) > 0) {
+            throw new RuntimeException("Khối lượng đóng (" + request.getQuantity().stripTrailingZeros().toPlainString()
+                    + ") vượt quá vị thế khả dụng để đóng (" + availablePosToClose.stripTrailingZeros().toPlainString()
+                    + " " + (instrument.getBaseAsset() != null ? instrument.getBaseAsset() : "") + "). Vị thế: " + activePosAbs.stripTrailingZeros().toPlainString()
+                    + ", Đang chờ khớp: " + pendingClosingQty.stripTrailingZeros().toPlainString());
+        }
+    }
 
-        } else if (request.getOrderType() == FuturesOrderType.LIMIT) {
-            // Treo lên Sổ lệnh bằng cách đẩy vào
-            // Kafka
-            OrderEvent event = OrderEvent.builder()
-                    .orderId(savedOrder.getId())
-                    .symbol(savedOrder.getInstrument().getSymbol())
-                    .side(savedOrder.getSide())
-                    .orderType(savedOrder.getOrderType())
-                    .price(savedOrder.getPrice())
-                    .quantity(savedOrder.getTotalQuantity())
-                    .remainingQuantity(savedOrder.getRemainingQuantity())
-                    .timestamp(savedOrder.getCreatedAt())
-                    .action("CREATE")
-                    .build();
-
+    private void dispatchOrder(FuturesOrder order) {
+        if (order.getOrderType() == FuturesOrderType.MARKET) {
+            matchingEngineService.matchFuturesOrder(order.getId());
+        } else if (order.getOrderType() == FuturesOrderType.LIMIT) {
+            OrderEvent event = orderEventMapper.toFuturesOrderEvent(order, "CREATE");
             futuresOrderProducer.sendOrderToQueue(event);
         }
-
-        // 5. Trả về kết quả cho API
-        return futuresOrderMapper.toResponse(savedOrder);
     }
 
     @Override
