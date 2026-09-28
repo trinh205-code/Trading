@@ -318,6 +318,51 @@ export const WalletPage: React.FC = () => {
     });
   }, [wallets, searchQuery, hideSmallBalances, priceMap]);
 
+  // Tính PnL Spot cho từng token (tiền lời/lỗ và % lợi nhuận)
+  const getSpotPnl = (currency: string, totalQty: number, currentPrice: number) => {
+    const currUpper = currency.toUpperCase();
+    if (currUpper === 'USDT' || totalQty <= 0) {
+      return { pnlAmount: 0, pnlPercent: 0, isStable: currUpper === 'USDT' };
+    }
+
+    const targetSymbol = `${currUpper}USDT`;
+    // Tìm các lệnh mua của token này trong lịch sử khớp lệnh Spot
+    const coinBuyTrades = spotTrades.filter(
+      (t) => (t.symbol === targetSymbol || t.symbol === currUpper) && t.side === 'BUY'
+    );
+
+    if (coinBuyTrades.length > 0) {
+      const totalCost = coinBuyTrades.reduce(
+        (acc, t) => acc + (Number(t.price) || 0) * (Number(t.quantity) || 0),
+        0
+      );
+      const totalBoughtQty = coinBuyTrades.reduce(
+        (acc, t) => acc + (Number(t.quantity) || 0),
+        0
+      );
+      const avgBuyPrice = totalBoughtQty > 0 ? totalCost / totalBoughtQty : 0;
+
+      if (avgBuyPrice > 0) {
+        const pnlAmount = (currentPrice - avgBuyPrice) * totalQty;
+        const pnlPercent = ((currentPrice - avgBuyPrice) / avgBuyPrice) * 100;
+        return { pnlAmount, pnlPercent, isStable: false };
+      }
+    }
+
+    // Fallback: Nếu chưa có lệnh mua trong session, tính theo biến động giá 24h của market
+    const market = markets.find(
+      (m) => m.symbol === targetSymbol || m.symbol === currUpper
+    );
+    if (market && market.priceChange !== undefined) {
+      const changePct = Number(market.priceChange) || 0;
+      const valUsdt = totalQty * currentPrice;
+      const pnlAmount = valUsdt * (changePct / 100);
+      return { pnlAmount, pnlPercent: changePct, isStable: false };
+    }
+
+    return { pnlAmount: 0, pnlPercent: 0, isStable: false };
+  };
+
   const spotOpenOrders = useMemo(() => {
     return orders.filter((o) => o.status === 'NEW' || o.status === 'PARTIALLY_FILLED');
   }, [orders]);
@@ -698,6 +743,9 @@ export const WalletPage: React.FC = () => {
                       const totalQty = w.balance + w.lockedBalance;
                       const price = priceMap[w.currency.toUpperCase()] || 1;
                       const valUsdt = totalQty * price;
+                      const { pnlAmount, pnlPercent, isStable } = getSpotPnl(w.currency, totalQty, price);
+                      const isProfit = pnlAmount > 0.0001;
+                      const isLoss = pnlAmount < -0.0001;
 
                       return (
                         <tr key={w.id} className="hover:bg-[#161616] transition-colors">
@@ -717,7 +765,17 @@ export const WalletPage: React.FC = () => {
                             <div className="font-bold text-white">
                               {showBalance ? `$${valUsdt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '••••'}
                             </div>
-                            <div className="text-[10px] text-[#777777]">≈ $0.00 (0.00%)</div>
+                            {showBalance ? (
+                              isStable ? (
+                                <div className="text-[10px] text-[#777777]">--</div>
+                              ) : (
+                                <div className={`text-[10px] font-semibold ${isProfit ? 'text-[#00c076]' : isLoss ? 'text-[#ff5b5b]' : 'text-[#777777]'}`}>
+                                  {isProfit ? '+' : ''}${pnlAmount.toFixed(2)} ({isProfit ? '+' : ''}{pnlPercent.toFixed(2)}%)
+                                </div>
+                              )
+                            ) : (
+                              <div className="text-[10px] text-[#777777]">••••</div>
+                            )}
                           </td>
                         </tr>
                       );
@@ -851,7 +909,7 @@ export const WalletPage: React.FC = () => {
                       <th className="py-3 px-3">Tên</th>
                       <th className="py-3 px-3 text-right">Số lượng</th>
                       <th className="py-3 px-3 text-right">Định giá</th>
-                      <th className="py-3 px-3 text-center">Thao tác</th>
+                      <th className="py-3 px-3 text-right">PnL Spot</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#1e1e1e] text-xs">
@@ -859,6 +917,9 @@ export const WalletPage: React.FC = () => {
                       const totalQty = w.balance + w.lockedBalance;
                       const price = priceMap[w.currency.toUpperCase()] || 1;
                       const valUsdt = totalQty * price;
+                      const { pnlAmount, pnlPercent, isStable } = getSpotPnl(w.currency, totalQty, price);
+                      const isProfit = pnlAmount > 0.0001;
+                      const isLoss = pnlAmount < -0.0001;
 
                       return (
                         <tr key={w.id} className="hover:bg-[#161616] transition-colors">
@@ -877,17 +938,23 @@ export const WalletPage: React.FC = () => {
                           <td className="py-3.5 px-3 text-right font-bold text-white">
                             {showBalance ? `$${valUsdt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '••••'}
                           </td>
-                          <td className="py-3.5 px-3 text-center">
-                            <button
-                              onClick={() => {
-                                setTransferCurrency(w.currency);
-                                setTransferDirection('SPOT_TO_FUTURES');
-                                setTransferModalOpen(true);
-                              }}
-                              className="px-3 py-1 rounded-full bg-[#1e1e1e] hover:bg-white hover:text-black text-[#cccccc] text-[11px] font-semibold transition-all"
-                            >
-                              Chuyển
-                            </button>
+                          <td className="py-3.5 px-3 text-right">
+                            {showBalance ? (
+                              isStable ? (
+                                <span className="text-[#777777] text-xs font-semibold">--</span>
+                              ) : (
+                                <div>
+                                  <div className={`font-bold text-xs ${isProfit ? 'text-[#00c076]' : isLoss ? 'text-[#ff5b5b]' : 'text-white'}`}>
+                                    {isProfit ? '+' : ''}${pnlAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </div>
+                                  <div className={`text-[10px] font-semibold ${isProfit ? 'text-[#00c076]' : isLoss ? 'text-[#ff5b5b]' : 'text-[#777777]'}`}>
+                                    ({isProfit ? '+' : ''}{pnlPercent.toFixed(2)}%)
+                                  </div>
+                                </div>
+                              )
+                            ) : (
+                              <span className="text-[#777777]">••••</span>
+                            )}
                           </td>
                         </tr>
                       );
