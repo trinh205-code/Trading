@@ -29,9 +29,16 @@ public class Trade {
 
     private String symbol;
     private OrderSide side;
+
+    @Column(precision = 24, scale = 8)
     private BigDecimal price;
+
+    @Column(precision = 24, scale = 8)
     private BigDecimal quantity;
+
+    @Column(precision = 24, scale = 8)
     private BigDecimal feeAmount;
+
     private Instant timestamp;
 
 

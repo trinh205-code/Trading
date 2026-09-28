@@ -603,19 +603,24 @@ export const WalletPage: React.FC = () => {
                     </div>
                   ) : (
                     <div className="divide-y divide-[#1e1e1e] space-y-3 font-mono">
-                      {spotTrades.slice(0, 3).map((st) => (
-                        <div key={st.id} className="pt-2 flex items-center justify-between">
-                          <div>
-                            <div className="text-white font-bold text-xs">{st.side === 'BUY' ? 'Khớp mua' : 'Khớp bán'} {st.symbol}</div>
-                            <div className="text-[10px] text-[#666666]">
-                              {st.createdAt ? new Date(st.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Vừa xong'}
+                      {spotTrades.slice(0, 3).map((st) => {
+                        const tradeTime = st.timestamp || st.createdAt;
+                        const qtyNum = typeof st.quantity === 'number' ? st.quantity : parseFloat(String(st.quantity)) || 0;
+                        const formattedQty = qtyNum.toLocaleString('en-US', { maximumFractionDigits: 8 });
+                        return (
+                          <div key={st.id} className="pt-2 flex items-center justify-between">
+                            <div>
+                              <div className="text-white font-bold text-xs">{st.side === 'BUY' ? 'Khớp mua' : 'Khớp bán'} {st.symbol}</div>
+                              <div className="text-[10px] text-[#666666]">
+                                {tradeTime ? new Date(tradeTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Vừa xong'}
+                              </div>
                             </div>
+                            <span className={`font-bold ${st.side === 'BUY' ? 'text-[#00c076]' : 'text-[#ff5b5b]'}`}>
+                              {st.side === 'BUY' ? '+' : '-'}{formattedQty} {st.symbol?.replace('USDT', '')}
+                            </span>
                           </div>
-                          <span className={`font-bold ${st.side === 'BUY' ? 'text-[#00c076]' : 'text-[#ff5b5b]'}`}>
-                            {st.side === 'BUY' ? '+' : '-'}{st.quantity} {st.symbol?.replace('USDT', '')}
-                          </span>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -791,19 +796,24 @@ export const WalletPage: React.FC = () => {
                   </div>
                 ) : (
                   <div className="divide-y divide-[#1e1e1e] space-y-3 font-mono">
-                    {spotTrades.slice(0, 3).map((st) => (
-                      <div key={st.id} className="pt-2 flex items-center justify-between">
-                        <div>
-                          <div className="text-white font-bold text-xs">{st.side === 'BUY' ? 'Khớp mua' : 'Khớp bán'} {st.symbol}</div>
-                          <div className="text-[10px] text-[#666666]">
-                            {st.createdAt ? new Date(st.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Vừa xong'}
+                    {spotTrades.slice(0, 3).map((st) => {
+                      const tradeTime = st.timestamp || st.createdAt;
+                      const qtyNum = typeof st.quantity === 'number' ? st.quantity : parseFloat(String(st.quantity)) || 0;
+                      const formattedQty = qtyNum.toLocaleString('en-US', { maximumFractionDigits: 8 });
+                      return (
+                        <div key={st.id} className="pt-2 flex items-center justify-between">
+                          <div>
+                            <div className="text-white font-bold text-xs">{st.side === 'BUY' ? 'Khớp mua' : 'Khớp bán'} {st.symbol}</div>
+                            <div className="text-[10px] text-[#666666]">
+                              {tradeTime ? new Date(tradeTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Vừa xong'}
+                            </div>
                           </div>
+                          <span className={`font-bold ${st.side === 'BUY' ? 'text-[#00c076]' : 'text-[#ff5b5b]'}`}>
+                            {st.side === 'BUY' ? '+' : '-'}{formattedQty} {st.symbol?.replace('USDT', '')}
+                          </span>
                         </div>
-                        <span className={`font-bold ${st.side === 'BUY' ? 'text-[#00c076]' : 'text-[#ff5b5b]'}`}>
-                          {st.side === 'BUY' ? '+' : '-'}{st.quantity} {st.symbol?.replace('USDT', '')}
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -1501,7 +1511,7 @@ export const WalletPage: React.FC = () => {
                               ${Number(tr.price).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                             </td>
                             <td className="py-3 px-4 text-right text-white">
-                              {Number(tr.quantity).toFixed(4)}
+                              {Number(tr.quantity).toLocaleString('en-US', { maximumFractionDigits: 8 })}
                             </td>
                             <td className="py-3 px-4 text-right text-white">
                               ${Number(tr.notional).toLocaleString('en-US', { minimumFractionDigits: 2 })}
