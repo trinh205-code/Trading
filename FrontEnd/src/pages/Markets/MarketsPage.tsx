@@ -9,6 +9,7 @@ import { CoinIcon } from '../../components/common/CoinIcon';
 import { marketApi } from '../../api/marketApi';
 import { MarketResponse, TopCoin, TopCoinsOverview } from '../../types/market';
 import { useMarketStore } from '../../stores/marketStore';
+import { useFavoritesStore } from '../../stores/favoritesStore';
 
 export const MarketsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -49,15 +50,8 @@ export const MarketsPage: React.FC = () => {
     setCurrentPage(1);
   }, [searchTerm, marketFilter]);
 
-  // Favorites
-  const [favorites, setFavorites] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('market_favorites');
-      return saved ? JSON.parse(saved) : ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
-    } catch {
-      return ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
-    }
-  });
+  // Favorites from unified store
+  const { favorites, toggleFavorite: storeToggleFavorite, isFavorite } = useFavoritesStore();
 
   // Top Coins Overview state from Backend
   const [topCoins, setTopCoins] = useState<TopCoinsOverview | null>(null);
@@ -65,11 +59,7 @@ export const MarketsPage: React.FC = () => {
 
   const toggleFavorite = (symbol: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setFavorites(prev => {
-      const next = prev.includes(symbol) ? prev.filter(s => s !== symbol) : [...prev, symbol];
-      localStorage.setItem('market_favorites', JSON.stringify(next));
-      return next;
-    });
+    storeToggleFavorite(symbol);
   };
 
   // Fetch top coins overview
