@@ -210,18 +210,26 @@ export const BuyCryptoPage: React.FC = () => {
             >
               P2P
             </button>
+
+            <Link
+              to="/buy-crypto/history"
+              className="h-full border-b-2 border-transparent flex items-center px-1 text-[#777777] hover:text-black transition-all"
+            >
+              Lịch sử mua tài sản số
+            </Link>
           </div>
 
           {/* Right helper links */}
           <div className="hidden md:flex items-center space-x-6 text-[#777777]">
-            <span className="hover:text-black cursor-pointer transition-colors">Thông báo</span>
-            <Link to="/wallet?tab=orderCenter" className="hover:text-black transition-colors">
-              Lệnh của tôi
+            <Link to="/buy-crypto/history" className="hover:text-black transition-colors">
+              Lịch sử giao dịch
+            </Link>
+            <Link to="/wallet" className="hover:text-black transition-colors">
+              Ví của tôi
             </Link>
             <Link to="/profile" className="hover:text-black transition-colors">
               Hồ sơ của tôi
             </Link>
-            <span className="hover:text-black cursor-pointer transition-colors">Thêm*</span>
           </div>
         </div>
       </div>
@@ -527,7 +535,7 @@ export const BuyCryptoPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex space-x-3 pt-2">
+            <div className="flex space-x-2 pt-2">
               <button
                 type="button"
                 onClick={() => setPaymentSuccessData(null)}
@@ -536,10 +544,16 @@ export const BuyCryptoPage: React.FC = () => {
                 Tiếp tục mua
               </button>
               <Link
+                to="/buy-crypto/history"
+                className="flex-1 py-3 rounded-full border border-black text-black font-bold text-xs hover:bg-gray-50 transition-colors flex items-center justify-center space-x-1"
+              >
+                <span>Xem lịch sử</span>
+              </Link>
+              <Link
                 to="/wallet"
                 className="flex-1 py-3 rounded-full bg-black text-white font-bold text-xs hover:bg-gray-800 transition-colors flex items-center justify-center space-x-1.5"
               >
-                <span>Xem số dư ví</span>
+                <span>Số dư ví</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </div>

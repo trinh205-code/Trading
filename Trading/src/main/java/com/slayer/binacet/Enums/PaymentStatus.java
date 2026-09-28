@@ -8,7 +8,8 @@ public enum PaymentStatus {
     FAILED,
     CANCELED,
     REFUNDED,
-    PROCESSING;
+    PROCESSING,
+    EXPIRED;
 
 
     @JsonCreator
@@ -17,7 +18,7 @@ public enum PaymentStatus {
             return PaymentStatus.valueOf(value.toUpperCase());
         } catch (Exception e) {
             throw new IllegalArgumentException(
-                    "Status must be one of: PENDING, SUCCESS, FAILED"
+                    "Status must be one of: PENDING, SUCCESS, FAILED, EXPIRED, CANCELED"
             );
         }
     }

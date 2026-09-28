@@ -71,12 +71,15 @@ public class FuturesMarketSyncService {
         try {
             response = restTemplate.getForObject(BINANCE_FUTURES_EXCHANGE_INFO_URL, BinanceFuturesExchangeInfoResponse.class);
         } catch (Exception e) {
-            log.error("Lỗi khi gọi Binance Futures exchangeInfo: ", e);
-            throw new ExternalApiException("Không thể đồng bộ Futures instrument từ Binance", e);
+            log.warn("⚠️ Không thể kết nối tới Binance Futures API ({}): {}. Sử dụng dữ liệu có sẵn trong hệ thống.",
+                    BINANCE_FUTURES_EXCHANGE_INFO_URL, e.getMessage());
+            initDefaultInstrumentsIfEmpty();
+            return;
         }
 
         if (response == null || response.getSymbols() == null) {
             log.warn("Không nhận được dữ liệu symbols từ Binance Futures!");
+            initDefaultInstrumentsIfEmpty();
             return;
         }
 
@@ -86,14 +89,11 @@ public class FuturesMarketSyncService {
             if (!TOP_FUTURES_SYMBOLS.contains(bs.getSymbol())) continue;
             if (!CONTRACT_TYPE_PERPETUAL.equals(bs.getContractType())) continue;
 
-            // =========================================================================
-            // 1. THÊM TẠI ĐÂY: Nếu DB đã có cặp coin này rồi -> BỎ QUA LUÔN
-            // =========================================================================
             if (futuresInstrumentRepository.existsById(bs.getSymbol())) {
                 continue;
             }
 
-            // 2. Chỉ chạy xuống đây khi là CẶP COIN MỚI TINH (lần đầu khởi chạy)
+            //  Chỉ chạy xuống đây khi là CẶP COIN MỚI TINH
             FuturesInstrument instrument = FuturesInstrument.builder()
                     .symbol(bs.getSymbol())
                     .baseAsset(bs.getBaseAsset())                     // THÊM: "BTC", "ETH" để load icon
@@ -115,8 +115,43 @@ public class FuturesMarketSyncService {
             upserted++;
         }
 
-
         log.info("Đã đồng bộ {} Futures instrument mới từ Binance!", upserted);
+    }
+
+    private void initDefaultInstrumentsIfEmpty() {
+        if (futuresInstrumentRepository.count() > 0) {
+            log.info("Database đã có {} Futures instrument sẵn có, tiếp tục khởi động bình thường.", futuresInstrumentRepository.count());
+            return;
+        }
+
+        log.info("Khởi tạo danh sách Futures instrument mặc định do chưa thể kết nối Binance...");
+        List<String> defaultSymbols = List.of(
+                "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT"
+        );
+        for (String sym : defaultSymbols) {
+            String base = sym.replace("USDT", "");
+            FuturesInstrument instrument = FuturesInstrument.builder()
+                    .symbol(sym)
+                    .baseAsset(base)
+                    .quoteAsset("USDT")
+                    .marginCurrencyShortName("USDT")
+                    .kind("perpetual")
+                    .makerFee(DEFAULT_MAKER_FEE)
+                    .takerFee(DEFAULT_TAKER_FEE)
+                    .maxLeverageLong(DEFAULT_MAX_LEVERAGE)
+                    .maxLeverageShort(DEFAULT_MAX_LEVERAGE)
+                    .fundingFrequency(DEFAULT_FUNDING_FREQUENCY_HOURS)
+                    .status("active")
+                    .maintenanceMarginRate(new BigDecimal("0.005"))
+                    .minPrice(new BigDecimal("0.01"))
+                    .maxPrice(new BigDecimal("1000000"))
+                    .priceIncrement(new BigDecimal("0.1"))
+                    .quantityIncrement(new BigDecimal("0.001"))
+                    .minNotional(new BigDecimal("5"))
+                    .build();
+            futuresInstrumentRepository.save(instrument);
+        }
+        log.info("Đã khởi tạo {} Futures instrument mặc định thành công!", defaultSymbols.size());
     }
 
 

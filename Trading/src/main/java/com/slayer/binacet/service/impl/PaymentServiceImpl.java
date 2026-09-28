@@ -14,6 +14,7 @@ import com.slayer.binacet.service.gateway.VnPayService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -146,13 +147,55 @@ public class PaymentServiceImpl implements PaymentService {
 
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public List<PaymentResponse> getMyPaymentHistory() {
         User user = getCurrentUser();
+        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(15);
         List<Payment> payments = paymentRepository.findByUserIdOrderByCreatedAtDesc(user.getId());
+        boolean hasExpired = false;
+
+        for (Payment payment : payments) {
+            if (payment.getPaymentStatus() == PaymentStatus.PENDING) {
+                LocalDateTime refTime = payment.getCreatedAt() != null ? payment.getCreatedAt() : payment.getInitiatedAt();
+                if (refTime != null && refTime.isBefore(cutoff)) {
+                    payment.setPaymentStatus(PaymentStatus.EXPIRED);
+                    if (payment.getCompletedAt() == null) {
+                        payment.setCompletedAt(refTime.plusMinutes(15));
+                    }
+                    hasExpired = true;
+                    log.info("Cập nhật giao dịch {} sang EXPIRED (quá hạn 15 phút)", payment.getTransactionId());
+                }
+            }
+        }
+
+        if (hasExpired) {
+            paymentRepository.saveAll(payments);
+        }
+
         return payments.stream()
                 .map(p -> mapToPaymentResponse(p, null))
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Tự động quét và cập nhật các đơn hàng VNPay còn PENDING quá 15 phút thành EXPIRED
+     * Chạy định kỳ mỗi 120 giây
+     */
+    @Scheduled(fixedDelay = 120000)
+    @Transactional
+    public void autoExpirePendingPayments() {
+        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(15);
+        List<Payment> pendingList = paymentRepository.findPendingPaymentsOlderThan(PaymentStatus.PENDING, cutoff);
+        if (!pendingList.isEmpty()) {
+            for (Payment p : pendingList) {
+                p.setPaymentStatus(PaymentStatus.EXPIRED);
+                LocalDateTime refTime = p.getCreatedAt() != null ? p.getCreatedAt() : p.getInitiatedAt();
+                p.setCompletedAt(refTime != null ? refTime.plusMinutes(15) : LocalDateTime.now());
+                log.info("CronJob: Đã cập nhật giao dịch {} sang EXPIRED do không hoàn tất sau 15 phút", p.getTransactionId());
+            }
+            paymentRepository.saveAll(pendingList);
+            log.info("CronJob: Hoàn tất cập nhật {} giao dịch VNPay quá hạn 15 phút sang EXPIRED", pendingList.size());
+        }
     }
 
     private PaymentResponse mapToPaymentResponse(Payment payment, String paymentUrl) {

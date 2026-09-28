@@ -12,6 +12,7 @@ import { ProfilePage } from '../pages/Profile/ProfilePage';
 import { LoginPage } from '../pages/Login/LoginPage';
 import { RegisterPage } from '../pages/Register/RegisterPage';
 import { BuyCryptoPage } from '../pages/BuyCrypto/BuyCryptoPage';
+import { BuyCryptoHistoryPage } from '../pages/BuyCrypto/BuyCryptoHistoryPage';
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -21,6 +22,7 @@ export const AppRoutes: React.FC = () => {
         <Route index element={<HomePage />} />
         <Route path="markets" element={<MarketsPage />} />
         <Route path="buy-crypto" element={<BuyCryptoPage />} />
+        <Route path="buy-crypto/history" element={<BuyCryptoHistoryPage />} />
         <Route path="p2p" element={<BuyCryptoPage />} />
         <Route path="express" element={<BuyCryptoPage />} />
 

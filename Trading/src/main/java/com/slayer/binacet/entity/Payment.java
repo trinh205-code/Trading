@@ -28,7 +28,7 @@ public class Payment {
     private User user;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "payment_status", columnDefinition = "VARCHAR(32)", nullable = false)
     private PaymentStatus paymentStatus;
 
     @Enumerated(EnumType.STRING)

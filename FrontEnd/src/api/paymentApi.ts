@@ -13,7 +13,7 @@ export interface PaymentResponse {
   amountVnd: number;
   usdtAmount: number;
   exchangeRate: number;
-  paymentStatus: 'PENDING' | 'SUCCESS' | 'FAILED' | 'EXPIRED';
+  paymentStatus: 'PENDING' | 'SUCCESS' | 'FAILED' | 'EXPIRED' | 'CANCELED';
   paymentGateway: string;
   paymentUrl?: string;
   bankCode?: string;

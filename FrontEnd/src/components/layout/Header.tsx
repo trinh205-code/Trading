@@ -15,6 +15,9 @@ import {
   Bell,
   Download,
   Gift,
+  History,
+  CreditCard,
+  Receipt,
 } from 'lucide-react';
 
 export const Header: React.FC = () => {
@@ -24,12 +27,28 @@ export const Header: React.FC = () => {
   const { wallets, claimFaucet, isClaimingFaucet } = useWalletStore();
 
   const [tradeMenuOpen, setTradeMenuOpen] = useState(false);
+  const [buyCryptoMenuOpen, setBuyCryptoMenuOpen] = useState(false);
   const [assetsMenuOpen, setAssetsMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [faucetSuccess, setFaucetSuccess] = useState(false);
 
   const tradeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const buyCryptoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const assetsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleBuyCryptoMouseEnter = () => {
+    if (buyCryptoTimeoutRef.current) {
+      clearTimeout(buyCryptoTimeoutRef.current);
+      buyCryptoTimeoutRef.current = null;
+    }
+    setBuyCryptoMenuOpen(true);
+  };
+
+  const handleBuyCryptoMouseLeave = () => {
+    buyCryptoTimeoutRef.current = setTimeout(() => {
+      setBuyCryptoMenuOpen(false);
+    }, 250);
+  };
 
   const handleTradeMouseEnter = () => {
     if (tradeTimeoutRef.current) {
@@ -62,6 +81,7 @@ export const Header: React.FC = () => {
   useEffect(() => {
     return () => {
       if (tradeTimeoutRef.current) clearTimeout(tradeTimeoutRef.current);
+      if (buyCryptoTimeoutRef.current) clearTimeout(buyCryptoTimeoutRef.current);
       if (assetsTimeoutRef.current) clearTimeout(assetsTimeoutRef.current);
     };
   }, []);
@@ -101,17 +121,66 @@ export const Header: React.FC = () => {
  
           {/* Nav List */}
           <nav className="hidden xl:flex items-center space-x-1">
-            <Link
-              to="/buy-crypto"
-              className={`flex items-center space-x-1 px-2.5 py-1.5 rounded transition-colors ${
-                location.pathname === '/buy-crypto'
-                  ? 'text-white font-bold bg-[#1a1a1a]'
-                  : 'text-[#cccccc] hover:text-white hover:bg-[#1a1a1a]'
-              }`}
+            {/* Mua tài sản số with Dropdown */}
+            <div
+              className="relative"
+              onMouseEnter={handleBuyCryptoMouseEnter}
+              onMouseLeave={handleBuyCryptoMouseLeave}
             >
-              <span>Mua tài sản số</span>
-              <ChevronDown className="w-3 h-3 text-[#777777]" />
-            </Link>
+              <Link
+                to="/buy-crypto"
+                className={`flex items-center space-x-1 px-2.5 py-1.5 rounded transition-colors ${
+                  location.pathname.startsWith('/buy-crypto')
+                    ? 'text-white font-bold bg-[#1a1a1a]'
+                    : 'text-[#cccccc] hover:text-white hover:bg-[#1a1a1a]'
+                }`}
+              >
+                <span>Mua tài sản số</span>
+                <ChevronDown className="w-3 h-3 text-[#777777]" />
+              </Link>
+
+              {buyCryptoMenuOpen && (
+                <div
+                  className="absolute left-0 top-full pt-1 w-64 z-50 text-xs"
+                  onMouseEnter={handleBuyCryptoMouseEnter}
+                  onMouseLeave={handleBuyCryptoMouseLeave}
+                >
+                  <div className="bg-[#161616] border border-[#262626] rounded-xl shadow-2xl p-2 space-y-1">
+                    <Link
+                      to="/buy-crypto"
+                      onClick={() => setBuyCryptoMenuOpen(false)}
+                      className="flex items-start space-x-3 px-3 py-2.5 rounded-lg hover:bg-[#222222] transition-colors group"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-[#202020] border border-[#2e2e2e] flex items-center justify-center shrink-0 group-hover:border-[#00c076]/40 transition-colors">
+                        <CreditCard className="w-4 h-4 text-[#00c076]" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-white text-xs">Giao dịch Nhanh P2P</div>
+                        <div className="text-[10px] text-[#888888] leading-tight mt-0.5">
+                          Mua USDT bằng VND qua VNPay
+                        </div>
+                      </div>
+                    </Link>
+
+                    <Link
+                      to="/buy-crypto/history"
+                      onClick={() => setBuyCryptoMenuOpen(false)}
+                      className="flex items-start space-x-3 px-3 py-2.5 rounded-lg hover:bg-[#222222] transition-colors group"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-[#202020] border border-[#2e2e2e] flex items-center justify-center shrink-0 group-hover:border-blue-500/40 transition-colors">
+                        <History className="w-4 h-4 text-blue-400" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-white text-xs">Lịch sử giao dịch</div>
+                        <div className="text-[10px] text-[#888888] leading-tight mt-0.5">
+                          Xem tất cả đơn mua USDT
+                        </div>
+                      </div>
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <Link
               to="/markets"
@@ -340,6 +409,14 @@ export const Header: React.FC = () => {
                     >
                       <Layers className="w-3.5 h-3.5" />
                       <span>Lệnh giao dịch</span>
+                    </Link>
+                    <Link
+                      to="/buy-crypto/history"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center space-x-2 px-4 py-2.5 text-[#cccccc] hover:text-white hover:bg-[#222222]"
+                    >
+                      <Receipt className="w-3.5 h-3.5" />
+                      <span>Lịch sử mua Crypto</span>
                     </Link>
                     <button
                       onClick={() => {
