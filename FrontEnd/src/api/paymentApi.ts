@@ -21,6 +21,13 @@ export interface PaymentResponse {
   completedAt?: string;
 }
 
+export interface ExchangeRateResponse {
+  symbol: string;
+  rate: number;
+  source: string;
+  updatedAt: string;
+}
+
 export const paymentApi = {
   createVnPayPayment: async (data: CreatePaymentRequest): Promise<ApiResponse<PaymentResponse>> => {
     return axiosClient.post('/payment/vnpay/create', data);
@@ -28,5 +35,9 @@ export const paymentApi = {
 
   getPaymentHistory: async (): Promise<ApiResponse<PaymentResponse[]>> => {
     return axiosClient.get('/payment/history');
+  },
+
+  getExchangeRate: async (): Promise<ApiResponse<ExchangeRateResponse>> => {
+    return axiosClient.get('/payment/exchange-rate');
   },
 };

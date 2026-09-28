@@ -26,9 +26,16 @@ import java.util.Map;
 public class PaymentController {
 
     private final PaymentService paymentService;
+    private final com.slayer.binacet.service.ExchangeRateService exchangeRateService;
 
     @Value("${app.frontend.url:http://localhost:3000}")
     private String frontendUrl;
+
+    @GetMapping("/exchange-rate")
+    public ResponseEntity<ApiResponse<com.slayer.binacet.dto.response.ExchangeRateResponse>> getExchangeRate() {
+        com.slayer.binacet.dto.response.ExchangeRateResponse rate = exchangeRateService.getRateResponse();
+        return ResponseEntity.ok(ApiResponse.success(rate, "Lấy tỷ giá USDT/VND thành công"));
+    }
 
     @PostMapping("/vnpay/create")
     public ResponseEntity<ApiResponse<PaymentResponse>> createVnPayPayment(

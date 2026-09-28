@@ -67,6 +67,7 @@ public class SecurityConfig {
                         .requestMatchers("/ws/**").permitAll() // WebSocket
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/api/payment/vnpay-return", "/api/v1/payment/vnpay-return").permitAll()
+                        .requestMatchers("/api/payment/exchange-rate", "/api/v1/payment/exchange-rate").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/futures/instruments/**").permitAll()
                         .anyRequest().authenticated()
                 )

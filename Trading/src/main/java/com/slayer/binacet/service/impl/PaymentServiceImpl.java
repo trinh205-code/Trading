@@ -35,9 +35,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentRepository paymentRepository;
     private final WalletBalanceRepository walletBalanceRepository;
     private final VnPayService vnPayService;
-
-    // Tỷ giá USDT/VND mặc định (25,933 VND / 1 USDT)
-    private static final BigDecimal DEFAULT_EXCHANGE_RATE = new BigDecimal("25933");
+    private final com.slayer.binacet.service.ExchangeRateService exchangeRateService;
 
     private User getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -54,7 +52,7 @@ public class PaymentServiceImpl implements PaymentService {
 
         BigDecimal amountVnd = request.getAmountVnd();
         BigDecimal usdtAmount = request.getUsdtAmount();
-        BigDecimal exchangeRate = DEFAULT_EXCHANGE_RATE;
+        BigDecimal exchangeRate = exchangeRateService.getUsdtToVndRate();
 
         // Tính toán số tiền nếu chỉ truyền một trong hai
         if (amountVnd != null && amountVnd.compareTo(BigDecimal.ZERO) > 0) {

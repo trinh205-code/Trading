@@ -86,8 +86,49 @@ export const BuyCryptoPage: React.FC = () => {
   } | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [isInputFocused, setIsInputFocused] = useState<boolean>(false);
+  const [rateUsdtVnd, setRateUsdtVnd] = useState<number>(25933);
+  const [rateSource, setRateSource] = useState<string>('Đang đồng bộ...');
+  const [isRateLoading, setIsRateLoading] = useState<boolean>(true);
 
-  const RATE_USDT_VND = 25933;
+  // Tự động lấy tỷ giá USDT/VND theo thời gian thực và cập nhật mỗi 10 giây
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchRealtimeRate = async () => {
+      try {
+        const res = await paymentApi.getExchangeRate();
+        if (isMounted && res.data?.rate && res.data.rate > 0) {
+          setRateUsdtVnd(Number(res.data.rate));
+          setRateSource(res.data.source || 'Trực tiếp');
+          setIsRateLoading(false);
+          return;
+        }
+      } catch (err) {
+        // Fallback trực tiếp sang CoinGecko nếu backend chưa khởi động xong
+        try {
+          const directRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=tether&vs_currencies=vnd');
+          const data = await directRes.json();
+          if (isMounted && data?.tether?.vnd) {
+            setRateUsdtVnd(Number(data.tether.vnd));
+            setRateSource('CoinGecko Real-time');
+            setIsRateLoading(false);
+            return;
+          }
+        } catch {
+          // Giữ giá trị trước đó hoặc mặc định
+        }
+      } finally {
+        if (isMounted) setIsRateLoading(false);
+      }
+    };
+
+    fetchRealtimeRate();
+    const interval = setInterval(fetchRealtimeRate, 10000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   // Handle callback query params when redirected from VNPay
   useEffect(() => {
@@ -107,9 +148,9 @@ export const BuyCryptoPage: React.FC = () => {
     }
   }, [searchParams, navigate, fetchWallets]);
 
-  // Calculate received crypto amount
+  // Calculate received crypto amount dynamically with real-time rate
   const numericPay = parseFloat(payAmountVnd.replace(/\D/g, '')) || 0;
-  const usdtEquivalent = numericPay / RATE_USDT_VND;
+  const usdtEquivalent = numericPay / rateUsdtVnd;
   const receivedCryptoAmount =
     selectedCrypto.symbol === 'USDT'
       ? usdtEquivalent
@@ -410,9 +451,15 @@ export const BuyCryptoPage: React.FC = () => {
 
               {/* Reference Price Rate */}
               <div className="text-xs text-[#777777] flex items-center justify-between pt-1">
-                <span>Giá tham chiếu</span>
+                <span className="flex items-center gap-1.5">
+                  <span>Giá tham chiếu</span>
+                  <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full font-semibold border border-emerald-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    {rateSource}
+                  </span>
+                </span>
                 <span className="font-bold text-black">
-                  1 USDT = {RATE_USDT_VND.toLocaleString('vi-VN')} VND
+                  1 USDT = {rateUsdtVnd.toLocaleString('vi-VN')} VND
                 </span>
               </div>
 
@@ -556,7 +603,7 @@ export const BuyCryptoPage: React.FC = () => {
               <div className="flex justify-between py-1 border-b border-gray-100">
                 <span className="text-gray-500">Tỷ giá quy đổi</span>
                 <span className="font-semibold text-gray-700">
-                  1 USDT = {RATE_USDT_VND.toLocaleString('vi-VN')} VND
+                  1 USDT = {rateUsdtVnd.toLocaleString('vi-VN')} VND ({rateSource})
                 </span>
               </div>
 
