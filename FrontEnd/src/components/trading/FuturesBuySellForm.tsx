@@ -25,7 +25,6 @@ export const FuturesBuySellForm: React.FC<FuturesBuySellFormProps> = ({
 
   const [mode, setMode] = useState<'OPEN' | 'CLOSE'>('OPEN'); // Mở vs Đóng
   const [orderType, setOrderType] = useState<'LIMIT' | 'MARKET' | 'TPSL'>('LIMIT');
-  const [marginType] = useState<'ISOLATED'>('ISOLATED');
   const [hasTpSl, setHasTpSl] = useState(false);
   const [leverageModalOpen, setLeverageModalOpen] = useState(false);
 
@@ -35,6 +34,7 @@ export const FuturesBuySellForm: React.FC<FuturesBuySellFormProps> = ({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [currentPosition, setCurrentPosition] = useState<any | null>(null);
+  const [pendingCloseQty, setPendingCloseQty] = useState<number>(0);
 
   const fetchActivePosition = async () => {
     if (!isAuthenticated) return;
@@ -51,12 +51,47 @@ export const FuturesBuySellForm: React.FC<FuturesBuySellFormProps> = ({
     }
   };
 
+  const fetchPendingCloseOrders = async () => {
+    if (!isAuthenticated) return;
+    try {
+      const res: any = await axiosClient.get(`/futures/orders?symbol=${symbol.toUpperCase()}&status=OPEN`);
+      if (res && res.data) {
+        const orderList = Array.isArray(res.data) ? res.data : (res.data.content || []);
+        // Lọc các lệnh đang chờ khớp có nhiệm vụ đóng vị thế
+        const closingOrders = orderList.filter((o: any) => {
+          const isExit = o.stage === 'exit' || o.stage === 'tpsl_exit' || o.reduceOnly === true;
+          return isExit;
+        });
+        const totalPending = closingOrders.reduce((sum: number, o: any) => {
+          return sum + (Number(o.remainingQuantity) || Number(o.totalQuantity) || 0);
+        }, 0);
+        setPendingCloseQty(totalPending);
+      }
+    } catch {
+      // silent
+    }
+  };
+
   useEffect(() => {
     if (isAuthenticated) {
       fetchFuturesWallets();
       fetchActivePosition();
+      fetchPendingCloseOrders();
     }
   }, [isAuthenticated, fetchFuturesWallets, symbol, mode]);
+
+  useEffect(() => {
+    const handleOrderEvent = () => {
+      fetchActivePosition();
+      fetchPendingCloseOrders();
+    };
+    window.addEventListener('futures_order_placed', handleOrderEvent);
+    window.addEventListener('futures_order_cancelled', handleOrderEvent);
+    return () => {
+      window.removeEventListener('futures_order_placed', handleOrderEvent);
+      window.removeEventListener('futures_order_cancelled', handleOrderEvent);
+    };
+  }, [symbol]);
 
   const usdtFuturesWallet = getFuturesBalanceForCurrency('USDT');
   const availableUsdt = usdtFuturesWallet ? Number(usdtFuturesWallet.balance) : 0;
@@ -108,11 +143,14 @@ export const FuturesBuySellForm: React.FC<FuturesBuySellFormProps> = ({
     return Math.floor(val * factor + 1e-9) / factor;
   };
 
+  // Khối lượng vị thế còn KHẢ DỤNG để đóng = Vị thế hiện có - Các lệnh đóng đang chờ khớp
+  const availableToClose = Math.max(0, posQty - pendingCloseQty);
+
   // Vị thế tối đa cho phép:
-  // Nếu ở chế độ "ĐÓNG", tối đa là khối lượng vị thế hiện có (posQty). Không lấy theo số dư ví!
+  // Nếu ở chế độ "ĐÓNG", tối đa là khối lượng vị thế KHẢ DỤNG (availableToClose).
   // Nếu ở chế độ "MỞ", tối đa là sức mua tối đa chia cho giá.
   const maxOpenQty = effectivePrice > 0 ? (maxBuyPower / effectivePrice) : 0;
-  const rawMax = mode === 'CLOSE' ? posQty : maxOpenQty;
+  const rawMax = mode === 'CLOSE' ? availableToClose : maxOpenQty;
   const maxAllowedQty = floorToDecimals(rawMax, qtyDecimals);
 
   // Reset form when symbol or mode changes
@@ -193,9 +231,14 @@ export const FuturesBuySellForm: React.FC<FuturesBuySellFormProps> = ({
     ? (effectivePrice - posAvgPrice) * qtyNumber
     : (posAvgPrice - effectivePrice) * qtyNumber;
 
+  // Giá thanh lý ước tính khi mở vị thế mới (MMR ~ 0.5%)
+  const mmr = 0.005;
+  const estLiqLong = effectivePrice > 0 ? Math.max(0, effectivePrice * (1 - 1 / leverage + mmr)) : 0;
+  const estLiqShort = effectivePrice > 0 ? effectivePrice * (1 + 1 / leverage - mmr) : 0;
+
   // Kiểm tra nếu số lượng hoặc chi phí vượt quá giới hạn
   const isExceeded = qtyNumber > 0 && (
-    (mode === 'CLOSE' && (posQty === 0 || qtyNumber > posQty * 1.000001)) ||
+    (mode === 'CLOSE' && (availableToClose <= 0 || qtyNumber > availableToClose * 1.000001)) ||
     (mode === 'OPEN' && maxAllowedQty > 0 && qtyNumber > maxAllowedQty * 1.000001) ||
     (mode === 'OPEN' && parseFloat(marginCost) > availableUsdt * 1.000001)
   );
@@ -246,10 +289,17 @@ export const FuturesBuySellForm: React.FC<FuturesBuySellFormProps> = ({
         });
         return;
       }
-      if (qtyVal > posQty) {
+      if (availableToClose <= 0) {
         setFeedback({
           type: 'error',
-          message: `Khối lượng đóng (${qtyVal}) vượt quá vị thế hiện có (${posQty} ${baseAsset}).`,
+          message: `Toàn bộ vị thế (${posQty} ${baseAsset}) đã được đặt trong các lệnh đóng chờ khớp. Bạn không thể mở thêm lệnh đóng nào nữa!`,
+        });
+        return;
+      }
+      if (qtyVal > availableToClose * 1.000001) {
+        setFeedback({
+          type: 'error',
+          message: `Khối lượng đóng (${qtyVal}) vượt quá vị thế khả dụng để đóng (${availableToClose.toFixed(qtyDecimals)} ${baseAsset}). Đang chờ khớp đóng: ${pendingCloseQty.toFixed(qtyDecimals)} ${baseAsset}.`,
         });
         return;
       }
@@ -530,6 +580,18 @@ export const FuturesBuySellForm: React.FC<FuturesBuySellFormProps> = ({
                 </span>
               </span>
             </div>
+            <div className="flex justify-between text-[9px] pt-1 border-t border-[#1c1c1c]">
+              <span className="text-[#888888]">Giá thanh lý ước tính</span>
+              <span className="font-mono text-right">
+                <span className="text-[#ff5b5b] font-semibold" title="Thanh lý vị thế Long">
+                  Long: ${estLiqLong < 1 ? estLiqLong.toFixed(4) : estLiqLong.toFixed(1)}
+                </span>
+                <span className="text-[#555555] mx-1.5">|</span>
+                <span className="text-amber-400 font-semibold" title="Thanh lý vị thế Short">
+                  Short: ${estLiqShort < 1 ? estLiqShort.toFixed(4) : estLiqShort.toFixed(1)}
+                </span>
+              </span>
+            </div>
           </div>
         ) : (
           <div className="space-y-1 text-[10px] text-[#777777] pt-1 border-t border-[#1e1e1e]">
@@ -551,10 +613,18 @@ export const FuturesBuySellForm: React.FC<FuturesBuySellFormProps> = ({
                 ${posAvgPrice > 0 ? posAvgPrice.toLocaleString('en-US', { minimumFractionDigits: posAvgPrice < 1 ? 4 : 2 }) : '0.00'}
               </span>
             </div>
+            {pendingCloseQty > 0 && (
+              <div className="flex justify-between text-amber-400">
+                <span>Đang chờ khớp đóng</span>
+                <span className="font-mono font-semibold">
+                  {pendingCloseQty.toFixed(qtyDecimals)} {baseAsset}
+                </span>
+              </div>
+            )}
             <div className="flex justify-between">
-              <span>Số lượng đóng tối đa</span>
-              <span className="font-mono text-white font-semibold">
-                {posQty} {baseAsset}
+              <span>Khả dụng để đóng</span>
+              <span className={`font-mono font-semibold ${availableToClose > 0 ? 'text-[#00c076]' : 'text-[#ff5b5b]'}`}>
+                {availableToClose.toFixed(qtyDecimals)} {baseAsset}
               </span>
             </div>
           </div>
@@ -611,20 +681,34 @@ export const FuturesBuySellForm: React.FC<FuturesBuySellFormProps> = ({
         ) : (
           <div className="pt-1">
             {posQty > 0 ? (
-              <button
-                onClick={() => handleSubmitOrder(posIsLong ? 'SELL' : 'BUY')}
-                disabled={isSubmitting || isExceeded || qtyNumber <= 0}
-                className={`w-full py-3 px-3 rounded-xl text-xs text-center transition-all shadow-lg font-black ${
-                  posIsLong
-                    ? 'bg-[#ff5b5b] hover:bg-[#e64a4a] text-white shadow-[#ff5b5b]/15'
-                    : 'bg-[#00c076] hover:bg-[#00a867] text-black shadow-[#00c076]/15'
-                } disabled:opacity-40 disabled:cursor-not-allowed`}
-              >
-                <div>{posIsLong ? 'Đóng vị thế Long (Bán)' : 'Đóng vị thế Short (Mua)'}</div>
-                <div className="text-[10px] font-normal font-mono mt-0.5 opacity-90">
-                  PnL dự kiến: {estClosePnl >= 0 ? '+' : ''}{estClosePnl.toFixed(2)} USDT • Ký quỹ: 0.00 USDT
+              availableToClose <= 0 ? (
+                <div className="space-y-2">
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-center text-amber-400 text-xs">
+                    ⚠️ Toàn bộ vị thế ({posQty} {baseAsset}) đã được đặt trong các lệnh đóng chờ khớp. Hãy hủy lệnh đóng cũ ở bảng phía dưới nếu muốn đặt lệnh mới!
+                  </div>
+                  <button
+                    disabled
+                    className="w-full py-3 px-3 rounded-xl text-xs text-center font-black bg-[#2a2a2a] text-[#777777] cursor-not-allowed border border-[#3a3a3a]"
+                  >
+                    Đã đặt hết lệnh đóng chờ khớp ({pendingCloseQty.toFixed(qtyDecimals)} {baseAsset})
+                  </button>
                 </div>
-              </button>
+              ) : (
+                <button
+                  onClick={() => handleSubmitOrder(posIsLong ? 'SELL' : 'BUY')}
+                  disabled={isSubmitting || isExceeded || qtyNumber <= 0}
+                  className={`w-full py-3 px-3 rounded-xl text-xs text-center transition-all shadow-lg font-black ${
+                    posIsLong
+                      ? 'bg-[#ff5b5b] hover:bg-[#e64a4a] text-white shadow-[#ff5b5b]/15'
+                      : 'bg-[#00c076] hover:bg-[#00a867] text-black shadow-[#00c076]/15'
+                  } disabled:opacity-40 disabled:cursor-not-allowed`}
+                >
+                  <div>{posIsLong ? 'Đóng vị thế Long (Bán)' : 'Đóng vị thế Short (Mua)'}</div>
+                  <div className="text-[10px] font-normal font-mono mt-0.5 opacity-90">
+                    PnL dự kiến: {estClosePnl >= 0 ? '+' : ''}{estClosePnl.toFixed(2)} USDT • Ký quỹ: 0.00 USDT
+                  </div>
+                </button>
+              )
             ) : (
               <div className="p-3 bg-[#181818] border border-[#2a2a2a] rounded-xl text-center text-[#888888] text-xs space-y-2">
                 <div>Bạn chưa có vị thế mở nào cho <strong className="text-white">{symbol}</strong> để đóng.</div>
@@ -693,12 +777,13 @@ export const FuturesBuySellForm: React.FC<FuturesBuySellFormProps> = ({
         </div>
       </div>
 
-      {/* Leverage & Margin Modal */}
+      {/* Leverage Modal (Cô lập 1x - 125x) */}
       <LeverageModal
         isOpen={leverageModalOpen}
         onClose={() => setLeverageModalOpen(false)}
         symbol={symbol}
         currentLeverage={leverage}
+        currentPrice={effectivePrice}
         onLeverageChange={onLeverageChange}
       />
     </div>

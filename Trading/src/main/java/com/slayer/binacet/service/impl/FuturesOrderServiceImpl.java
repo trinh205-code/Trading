@@ -135,6 +135,47 @@ public class FuturesOrderServiceImpl implements FuturesOrderService {
                 throw new RuntimeException("Số dư khả dụng không đủ để đặt lệnh");
             }
             futuresWalletService.lockMargin(user.getId(), instrument.getMarginCurrencyShortName(), requiredMargin);
+        } else {
+            // Kiểm tra nghiêm ngặt lệnh ĐÓNG vị thế (reduceOnly / Exit)
+            FuturesPosition position = futuresPositionRepository
+                    .findByUser_IdAndInstrument_Symbol(user.getId(), instrument.getSymbol())
+                    .orElse(null);
+
+            if (position == null || position.getActivePos() == null || position.getActivePos().compareTo(BigDecimal.ZERO) == 0) {
+                throw new RuntimeException("Bạn không có vị thế mở nào cho " + instrument.getSymbol() + " để đóng");
+            }
+
+            BigDecimal activePosAbs = position.getActivePos().abs();
+            boolean isLong = position.getActivePos().signum() > 0;
+
+            if ((isLong && request.getSide() != OrderSide.SELL) || (!isLong && request.getSide() != OrderSide.BUY)) {
+                throw new RuntimeException("Chiều đóng vị thế không hợp lệ. Vị thế hiện tại là "
+                        + (isLong ? "LONG (Bán để đóng)" : "SHORT (Mua để đóng)"));
+            }
+
+            // Tính tổng khối lượng các lệnh đóng đang chờ khớp (OPEN hoặc PARTIALLY_FILLED)
+            java.util.List<FuturesOrderStatus> activeStatuses = java.util.List.of(FuturesOrderStatus.OPEN, FuturesOrderStatus.PARTIALLY_FILLED);
+            java.util.List<FuturesOrder> existingActiveOrders = futuresOrderRepository
+                    .findByUser_IdAndInstrument_SymbolAndStatusIn(user.getId(), instrument.getSymbol(), activeStatuses);
+
+            BigDecimal pendingClosingQty = existingActiveOrders.stream()
+                    .filter(o -> ("exit".equalsIgnoreCase(o.getStage()) || "tpsl_exit".equalsIgnoreCase(o.getStage()))
+                            && o.getSide() == request.getSide())
+                    .map(o -> o.getRemainingQuantity() != null ? o.getRemainingQuantity() : BigDecimal.ZERO)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            BigDecimal availablePosToClose = activePosAbs.subtract(pendingClosingQty);
+            if (availablePosToClose.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new RuntimeException("Toàn bộ vị thế (" + activePosAbs.stripTrailingZeros().toPlainString()
+                        + " " + (instrument.getBaseAsset() != null ? instrument.getBaseAsset() : "") + ") đã được đặt trong các lệnh đóng chờ khớp. Không thể đặt thêm lệnh đóng.");
+            }
+
+            if (request.getQuantity().compareTo(availablePosToClose) > 0) {
+                throw new RuntimeException("Khối lượng đóng (" + request.getQuantity().stripTrailingZeros().toPlainString()
+                        + ") vượt quá vị thế khả dụng để đóng (" + availablePosToClose.stripTrailingZeros().toPlainString()
+                        + " " + (instrument.getBaseAsset() != null ? instrument.getBaseAsset() : "") + "). Vị thế: " + activePosAbs.stripTrailingZeros().toPlainString()
+                        + ", Đang chờ khớp: " + pendingClosingQty.stripTrailingZeros().toPlainString());
+            }
         }
 
         FuturesOrder order = futuresOrderMapper.toEntity(request);
@@ -142,6 +183,7 @@ public class FuturesOrderServiceImpl implements FuturesOrderService {
         order.setInstrument(instrument);
         order.setStatus(FuturesOrderStatus.OPEN);
         order.setMarginCurrencyShortName(instrument.getMarginCurrencyShortName());
+        order.setStage(request.isReduceOnly() ? "exit" : "default");
         order.setCreatedAt(Instant.now());
         order.setUpdatedAt(Instant.now());
 

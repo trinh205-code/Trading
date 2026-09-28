@@ -142,6 +142,7 @@ export const OpenOrdersPanel: React.FC<OpenOrdersPanelProps> = ({ symbol, isFutu
       await futuresApi.cancelOrder(orderId);
       await fetchFuturesOrders();
       fetchFuturesWallets();
+      window.dispatchEvent(new CustomEvent('futures_order_cancelled'));
     } catch (err: any) {
       alert(err.message || 'Không thể hủy lệnh');
     } finally {
@@ -156,6 +157,7 @@ export const OpenOrdersPanel: React.FC<OpenOrdersPanelProps> = ({ symbol, isFutu
       await fetchFuturesTrades();
       await fetchPositionHistory();
       fetchFuturesWallets();
+      window.dispatchEvent(new CustomEvent('futures_order_placed'));
     } catch (err: any) {
       alert(err.message || 'Không thể đóng vị thế');
     }
