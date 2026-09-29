@@ -10,7 +10,11 @@ import {
   ArrowLeftRight,
   Gift,
   RefreshCw,
+  ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Calendar,
   Filter,
   Trash2,
   HelpCircle,
@@ -38,6 +42,21 @@ import { ExportReportModal } from '../../components/trading/ExportReportModal';
 import { WalletProfitChart } from '../../components/wallet/WalletProfitChart';
 
 type MainTab = 'overview' | 'funding' | 'trading' | 'orderCenter';
+
+const generatePageNumbers = (current: number, total: number): (number | string)[] => {
+  if (total <= 5) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  const pages: (number | string)[] = [];
+  if (current <= 3) {
+    pages.push(1, 2, 3, 4, '...', total);
+  } else if (current >= total - 2) {
+    pages.push(1, '...', total - 3, total - 2, total - 1, total);
+  } else {
+    pages.push(1, '...', current - 1, current, current + 1, '...', total);
+  }
+  return pages;
+};
 
 export const WalletPage: React.FC = () => {
   const navigate = useNavigate();
@@ -84,6 +103,13 @@ export const WalletPage: React.FC = () => {
   const [orderSymbolFilter, setOrderSymbolFilter] = useState('');
   const [orderTypeFilter, setOrderTypeFilter] = useState('ALL');
   const [orderMarketFilter, setOrderMarketFilter] = useState<'ALL' | 'SPOT' | 'FUTURES'>('ALL');
+
+  // Order Center Date Range & Pagination
+  const [orderDateRange, setOrderDateRange] = useState<'ALL' | 'TODAY' | '7D' | '30D' | '90D' | 'CUSTOM'>('ALL');
+  const [orderStartDate, setOrderStartDate] = useState('');
+  const [orderEndDate, setOrderEndDate] = useState('');
+  const [orderCurrentPage, setOrderCurrentPage] = useState(1);
+  const [orderPageSize, setOrderPageSize] = useState(10);
 
   // Order Center Data
   const [futuresOrders, setFuturesOrders] = useState<FuturesOrderResponse[]>([]);
@@ -388,6 +414,41 @@ export const WalletPage: React.FC = () => {
     return futuresOrders.filter((o) => o.status !== 'OPEN' && o.status !== 'PARTIALLY_FILLED');
   }, [futuresOrders]);
 
+  const isWithinDateRange = (dateVal?: string | number | null) => {
+    if (orderDateRange === 'ALL') return true;
+    if (!dateVal) return false;
+    const timeMs = new Date(dateVal).getTime();
+    if (isNaN(timeMs)) return false;
+
+    const now = Date.now();
+    if (orderDateRange === 'TODAY') {
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      return timeMs >= todayStart.getTime();
+    }
+    if (orderDateRange === '7D') {
+      return timeMs >= now - 7 * 24 * 60 * 60 * 1000;
+    }
+    if (orderDateRange === '30D') {
+      return timeMs >= now - 30 * 24 * 60 * 60 * 1000;
+    }
+    if (orderDateRange === '90D') {
+      return timeMs >= now - 90 * 24 * 60 * 60 * 1000;
+    }
+    if (orderDateRange === 'CUSTOM') {
+      if (orderStartDate) {
+        const startMs = new Date(orderStartDate).setHours(0, 0, 0, 0);
+        if (timeMs < startMs) return false;
+      }
+      if (orderEndDate) {
+        const endMs = new Date(orderEndDate).setHours(23, 59, 59, 999);
+        if (timeMs > endMs) return false;
+      }
+      return true;
+    }
+    return true;
+  };
+
   const combinedOpenOrders = useMemo(() => {
     let list: Array<{
       id: string;
@@ -438,12 +499,18 @@ export const WalletPage: React.FC = () => {
       );
     }
 
+    if (orderSymbolFilter) {
+      list = list.filter((o) => o.symbol === orderSymbolFilter);
+    }
+
     if (orderTypeFilter !== 'ALL') {
       list = list.filter((o) => o.orderType?.toUpperCase() === orderTypeFilter);
     }
 
+    list = list.filter((o) => isWithinDateRange(o.createdAt));
+
     return list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-  }, [spotOpenOrders, futuresOpenOrders, orderMarketFilter, orderTypeFilter]);
+  }, [spotOpenOrders, futuresOpenOrders, orderMarketFilter, orderTypeFilter, orderSymbolFilter, orderDateRange, orderStartDate, orderEndDate]);
 
   const combinedHistoryOrders = useMemo(() => {
     let list: Array<{
@@ -495,12 +562,31 @@ export const WalletPage: React.FC = () => {
       );
     }
 
+    if (orderSymbolFilter) {
+      list = list.filter((o) => o.symbol === orderSymbolFilter);
+    }
+
     if (orderTypeFilter !== 'ALL') {
       list = list.filter((o) => o.orderType?.toUpperCase() === orderTypeFilter);
     }
 
+    list = list.filter((o) => isWithinDateRange(o.createdAt));
+
     return list.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-  }, [spotHistoryOrders, futuresHistoryOrders, orderMarketFilter, orderTypeFilter]);
+  }, [spotHistoryOrders, futuresHistoryOrders, orderMarketFilter, orderTypeFilter, orderSymbolFilter, orderDateRange, orderStartDate, orderEndDate]);
+
+  const filteredPositionHistory = useMemo(() => {
+    let list = [...positionHistory];
+    if (orderSymbolFilter) {
+      list = list.filter((p) => p.symbol === orderSymbolFilter);
+    }
+    list = list.filter((p) => isWithinDateRange(p.closeTime || p.updatedAt || p.createdAt));
+    return list.sort((a, b) => {
+      const timeA = new Date(a.closeTime || a.updatedAt || a.createdAt || 0).getTime();
+      const timeB = new Date(b.closeTime || b.updatedAt || b.createdAt || 0).getTime();
+      return timeB - timeA;
+    });
+  }, [positionHistory, orderSymbolFilter, orderDateRange, orderStartDate, orderEndDate]);
 
   const combinedTrades = useMemo(() => {
     let list: Array<{
@@ -550,8 +636,52 @@ export const WalletPage: React.FC = () => {
       );
     }
 
+    if (orderSymbolFilter) {
+      list = list.filter((t) => t.symbol === orderSymbolFilter);
+    }
+
+    list = list.filter((t) => isWithinDateRange(t.timestamp));
+
     return list.sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
-  }, [spotTrades, futuresTrades, orderMarketFilter]);
+  }, [spotTrades, futuresTrades, orderMarketFilter, orderSymbolFilter, orderDateRange, orderStartDate, orderEndDate]);
+
+  const totalItems = useMemo(() => {
+    switch (orderSubTab) {
+      case 'open':
+        return combinedOpenOrders.length;
+      case 'history':
+        return combinedHistoryOrders.length;
+      case 'posHistory':
+        return filteredPositionHistory.length;
+      case 'trades':
+        return combinedTrades.length;
+      default:
+        return 0;
+    }
+  }, [orderSubTab, combinedOpenOrders, combinedHistoryOrders, filteredPositionHistory, combinedTrades]);
+
+  const totalPages = Math.max(1, Math.ceil(totalItems / orderPageSize));
+  const safeCurrentPage = Math.min(Math.max(1, orderCurrentPage), totalPages);
+
+  const paginatedOpenOrders = useMemo(() => {
+    const start = (safeCurrentPage - 1) * orderPageSize;
+    return combinedOpenOrders.slice(start, start + orderPageSize);
+  }, [combinedOpenOrders, safeCurrentPage, orderPageSize]);
+
+  const paginatedHistoryOrders = useMemo(() => {
+    const start = (safeCurrentPage - 1) * orderPageSize;
+    return combinedHistoryOrders.slice(start, start + orderPageSize);
+  }, [combinedHistoryOrders, safeCurrentPage, orderPageSize]);
+
+  const paginatedPositionHistory = useMemo(() => {
+    const start = (safeCurrentPage - 1) * orderPageSize;
+    return filteredPositionHistory.slice(start, start + orderPageSize);
+  }, [filteredPositionHistory, safeCurrentPage, orderPageSize]);
+
+  const paginatedTrades = useMemo(() => {
+    const start = (safeCurrentPage - 1) * orderPageSize;
+    return combinedTrades.slice(start, start + orderPageSize);
+  }, [combinedTrades, safeCurrentPage, orderPageSize]);
 
   const openOrders = combinedOpenOrders;
   const historyOrders = combinedHistoryOrders;
@@ -1177,35 +1307,47 @@ export const WalletPage: React.FC = () => {
         {/* ========================================================================= */}
         {activeTab === 'orderCenter' && (
           <div className="bg-[#121212] border border-[#1e1e1e] rounded-2xl p-6">
-            {/* Sub-tabs: Lệnh chờ khớp | Lịch sử lệnh | Lịch sử vị thế | Lịch sử giao dịch | Dòng tiền vào/ra */}
+            {/* Sub-tabs: Lệnh chờ khớp | Lịch sử lệnh | Lịch sử vị thế | Lịch sử giao dịch */}
             <div className="flex items-center space-x-6 border-b border-[#1e1e1e] pb-3 mb-5 overflow-x-auto text-xs">
               <button
-                onClick={() => setOrderSubTab('open')}
-                className={`font-bold transition-colors pb-1 border-b-2 whitespace-nowrap ${
+                onClick={() => {
+                  setOrderSubTab('open');
+                  setOrderCurrentPage(1);
+                }}
+                className={`font-bold transition-colors pb-1 border-b-2 whitespace-nowrap cursor-pointer ${
                   orderSubTab === 'open' ? 'text-white border-white' : 'text-[#777777] border-transparent hover:text-white'
                 }`}
               >
                 Lệnh chờ khớp ({combinedOpenOrders.length})
               </button>
               <button
-                onClick={() => setOrderSubTab('history')}
-                className={`font-bold transition-colors pb-1 border-b-2 whitespace-nowrap ${
+                onClick={() => {
+                  setOrderSubTab('history');
+                  setOrderCurrentPage(1);
+                }}
+                className={`font-bold transition-colors pb-1 border-b-2 whitespace-nowrap cursor-pointer ${
                   orderSubTab === 'history' ? 'text-white border-white' : 'text-[#777777] border-transparent hover:text-white'
                 }`}
               >
                 Lịch sử lệnh ({combinedHistoryOrders.length})
               </button>
               <button
-                onClick={() => setOrderSubTab('posHistory')}
-                className={`font-bold transition-colors pb-1 border-b-2 whitespace-nowrap ${
+                onClick={() => {
+                  setOrderSubTab('posHistory');
+                  setOrderCurrentPage(1);
+                }}
+                className={`font-bold transition-colors pb-1 border-b-2 whitespace-nowrap cursor-pointer ${
                   orderSubTab === 'posHistory' ? 'text-white border-white' : 'text-[#777777] border-transparent hover:text-white'
                 }`}
               >
-                Lịch sử vị thế ({positionHistory.length})
+                Lịch sử vị thế ({filteredPositionHistory.length})
               </button>
               <button
-                onClick={() => setOrderSubTab('trades')}
-                className={`font-bold transition-colors pb-1 border-b-2 whitespace-nowrap ${
+                onClick={() => {
+                  setOrderSubTab('trades');
+                  setOrderCurrentPage(1);
+                }}
+                className={`font-bold transition-colors pb-1 border-b-2 whitespace-nowrap cursor-pointer ${
                   orderSubTab === 'trades' ? 'text-white border-white' : 'text-[#777777] border-transparent hover:text-white'
                 }`}
               >
@@ -1221,8 +1363,11 @@ export const WalletPage: React.FC = () => {
                   <span className="text-[#777777]">Thị trường:</span>
                   <select
                     value={orderMarketFilter}
-                    onChange={(e) => setOrderMarketFilter(e.target.value as any)}
-                    className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-[#00c076]"
+                    onChange={(e) => {
+                      setOrderMarketFilter(e.target.value as any);
+                      setOrderCurrentPage(1);
+                    }}
+                    className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-[#00c076] cursor-pointer"
                   >
                     <option value="ALL">Tất cả (Spot & Futures)</option>
                     <option value="SPOT">Giao ngay (Spot)</option>
@@ -1235,8 +1380,11 @@ export const WalletPage: React.FC = () => {
                   <span className="text-[#777777]">Công cụ:</span>
                   <select
                     value={orderSymbolFilter}
-                    onChange={(e) => setOrderSymbolFilter(e.target.value)}
-                    className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-[#00c076]"
+                    onChange={(e) => {
+                      setOrderSymbolFilter(e.target.value);
+                      setOrderCurrentPage(1);
+                    }}
+                    className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-[#00c076] cursor-pointer"
                   >
                     <option value="">Tất cả cặp coin</option>
                     {markets.map((m) => (
@@ -1253,13 +1401,66 @@ export const WalletPage: React.FC = () => {
                     <span className="text-[#777777]">Loại lệnh:</span>
                     <select
                       value={orderTypeFilter}
-                      onChange={(e) => setOrderTypeFilter(e.target.value)}
-                      className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-[#00c076]"
+                      onChange={(e) => {
+                        setOrderTypeFilter(e.target.value);
+                        setOrderCurrentPage(1);
+                      }}
+                      className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-[#00c076] cursor-pointer"
                     >
                       <option value="ALL">Giới hạn/Thị trường</option>
                       <option value="LIMIT">Giới hạn (Limit)</option>
                       <option value="MARKET">Thị trường (Market)</option>
                     </select>
+                  </div>
+                )}
+
+                {/* Date Range filter */}
+                <div className="flex items-center space-x-2">
+                  <span className="text-[#777777] flex items-center space-x-1">
+                    <Calendar className="w-3.5 h-3.5 text-[#888888]" />
+                    <span>Thời gian:</span>
+                  </span>
+                  <select
+                    value={orderDateRange}
+                    onChange={(e) => {
+                      setOrderDateRange(e.target.value as any);
+                      setOrderCurrentPage(1);
+                    }}
+                    className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-[#00c076] cursor-pointer"
+                  >
+                    <option value="ALL">Tất cả thời gian</option>
+                    <option value="TODAY">Hôm nay</option>
+                    <option value="7D">7 ngày qua</option>
+                    <option value="30D">30 ngày qua</option>
+                    <option value="90D">90 ngày qua</option>
+                    <option value="CUSTOM">Tùy chọn khoảng ngày</option>
+                  </select>
+                </div>
+
+                {/* Custom Date Pickers */}
+                {orderDateRange === 'CUSTOM' && (
+                  <div className="flex items-center space-x-2 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-2.5 py-1 text-xs">
+                    <span className="text-[#777777]">Từ:</span>
+                    <input
+                      type="date"
+                      value={orderStartDate}
+                      onChange={(e) => {
+                        setOrderStartDate(e.target.value);
+                        setOrderCurrentPage(1);
+                      }}
+                      className="bg-transparent text-white text-xs focus:outline-none [color-scheme:dark] cursor-pointer"
+                    />
+                    <span className="text-[#777777]">-</span>
+                    <span className="text-[#777777]">Đến:</span>
+                    <input
+                      type="date"
+                      value={orderEndDate}
+                      onChange={(e) => {
+                        setOrderEndDate(e.target.value);
+                        setOrderCurrentPage(1);
+                      }}
+                      className="bg-transparent text-white text-xs focus:outline-none [color-scheme:dark] cursor-pointer"
+                    />
                   </div>
                 )}
               </div>
@@ -1315,7 +1516,7 @@ export const WalletPage: React.FC = () => {
                         </td>
                       </tr>
                     ) : (
-                      combinedOpenOrders.map((ord) => {
+                      paginatedOpenOrders.map((ord) => {
                         const sideInfo = formatOrderSide(ord.side);
                         const statusInfo = formatOrderStatus(ord.status);
                         const typeLabel = formatOrderType(ord.orderType);
@@ -1405,7 +1606,7 @@ export const WalletPage: React.FC = () => {
                         </td>
                       </tr>
                     ) : (
-                      combinedHistoryOrders.map((ord) => {
+                      paginatedHistoryOrders.map((ord) => {
                         const sideInfo = formatOrderSide(ord.side);
                         const statusInfo = formatOrderStatus(ord.status);
                         const typeLabel = formatOrderType(ord.orderType);
@@ -1467,7 +1668,7 @@ export const WalletPage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#1e1e1e] text-xs">
-                    {positionHistory.length === 0 ? (
+                    {filteredPositionHistory.length === 0 ? (
                       <tr>
                         <td colSpan={8} className="py-16 text-center text-[#555555] font-sans">
                           <div className="flex flex-col items-center justify-center space-y-2">
@@ -1479,7 +1680,7 @@ export const WalletPage: React.FC = () => {
                         </td>
                       </tr>
                     ) : (
-                      positionHistory.map((ph) => {
+                      paginatedPositionHistory.map((ph) => {
                         const pnl = Number(ph.realizedPnl || 0);
                         const isPositive = pnl >= 0;
                         const dateStr = ph.createdAt
@@ -1571,7 +1772,7 @@ export const WalletPage: React.FC = () => {
                         </td>
                       </tr>
                     ) : (
-                      combinedTrades.map((tr) => {
+                      paginatedTrades.map((tr) => {
                         const isBuy = tr.side?.toUpperCase() === 'BUY';
                         const dateStr = tr.timestamp
                           ? new Date(tr.timestamp).toLocaleString('vi-VN')
@@ -1625,6 +1826,97 @@ export const WalletPage: React.FC = () => {
                     )}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {/* Pagination Controls */}
+            {totalItems > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 mt-4 border-t border-[#1e1e1e] text-xs text-[#888888]">
+                <div className="flex items-center space-x-2">
+                  <span>
+                    Hiển thị <span className="text-white font-mono font-medium">{(safeCurrentPage - 1) * orderPageSize + 1}</span> - <span className="text-white font-mono font-medium">{Math.min(safeCurrentPage * orderPageSize, totalItems)}</span> trên tổng số <span className="text-white font-mono font-bold">{totalItems}</span> mục
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Page Size Selector */}
+                  <div className="flex items-center space-x-1.5">
+                    <span>Số dòng:</span>
+                    <select
+                      value={orderPageSize}
+                      onChange={(e) => {
+                        setOrderPageSize(Number(e.target.value));
+                        setOrderCurrentPage(1);
+                      }}
+                      className="bg-[#1a1a1a] border border-[#2a2a2a] rounded px-2 py-1 text-white text-xs focus:outline-none focus:border-[#00c076] cursor-pointer"
+                    >
+                      <option value={10}>10 / trang</option>
+                      <option value={20}>20 / trang</option>
+                      <option value={50}>50 / trang</option>
+                      <option value={100}>100 / trang</option>
+                    </select>
+                  </div>
+
+                  {/* Navigation buttons */}
+                  <div className="flex items-center space-x-1 font-mono">
+                    <button
+                      onClick={() => setOrderCurrentPage(1)}
+                      disabled={safeCurrentPage === 1}
+                      className="p-1.5 rounded border border-[#2a2a2a] bg-[#161616] hover:bg-[#222222] text-[#cccccc] hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                      title="Trang đầu"
+                    >
+                      <ChevronsLeft className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setOrderCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={safeCurrentPage === 1}
+                      className="p-1.5 rounded border border-[#2a2a2a] bg-[#161616] hover:bg-[#222222] text-[#cccccc] hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                      title="Trang trước"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                    </button>
+
+                    {/* Page Numbers */}
+                    <div className="flex items-center space-x-1 px-1">
+                      {generatePageNumbers(safeCurrentPage, totalPages).map((p, idx) =>
+                        p === '...' ? (
+                          <span key={`ellipsis-${idx}`} className="px-1 text-[#555555]">
+                            ...
+                          </span>
+                        ) : (
+                          <button
+                            key={`page-${p}`}
+                            onClick={() => setOrderCurrentPage(Number(p))}
+                            className={`min-w-7 h-7 px-1.5 rounded text-xs font-semibold transition-all cursor-pointer ${
+                              safeCurrentPage === p
+                                ? 'bg-[#00c076] text-black font-bold'
+                                : 'bg-[#161616] border border-[#2a2a2a] text-[#cccccc] hover:bg-[#222222] hover:text-white'
+                            }`}
+                          >
+                            {p}
+                          </button>
+                        )
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => setOrderCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={safeCurrentPage === totalPages}
+                      className="p-1.5 rounded border border-[#2a2a2a] bg-[#161616] hover:bg-[#222222] text-[#cccccc] hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                      title="Trang sau"
+                    >
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => setOrderCurrentPage(totalPages)}
+                      disabled={safeCurrentPage === totalPages}
+                      className="p-1.5 rounded border border-[#2a2a2a] bg-[#161616] hover:bg-[#222222] text-[#cccccc] hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                      title="Trang cuối"
+                    >
+                      <ChevronsRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -1762,7 +2054,7 @@ export const WalletPage: React.FC = () => {
         onClose={() => setExportModalOpen(false)}
         orders={historyOrders.concat(openOrders)}
         trades={combinedTrades}
-        positions={positionHistory}
+        positions={filteredPositionHistory}
         defaultTab={
           orderSubTab === 'posHistory'
             ? 'positions'
