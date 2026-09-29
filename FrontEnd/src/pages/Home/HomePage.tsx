@@ -527,16 +527,6 @@ export const HomePage: React.FC = () => {
         )}
       </section>
 
-      {/* ========================================================================= */}
-      {/* 4. FLOATING SUPPORT BUTTON (Xanh thương hiệu #00c076) */}
-      {/* ========================================================================= */}
-      <button
-        onClick={() => alert('Trung tâm trợ giúp và chăm sóc khách hàng 24/7 trực tuyến!')}
-        className="fixed bottom-6 right-6 z-40 w-12 h-12 rounded-full bg-[#00c076] text-black shadow-xl shadow-[#00c076]/30 flex items-center justify-center hover:scale-110 active:scale-95 transition-all cursor-pointer"
-        title="Hỗ trợ trực tuyến 24/7"
-      >
-        <Headphones className="w-5 h-5 text-black" />
-      </button>
     </div>
   );
 };

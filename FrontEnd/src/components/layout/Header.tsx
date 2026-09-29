@@ -107,15 +107,15 @@ export const Header: React.FC = () => {
   return (
     <header className="bg-[#000000] border-b border-[#1e1e1e] sticky top-0 z-50 text-[#f0f0f0] select-none text-xs">
       <div className="max-w-[1920px] mx-auto px-4 h-12 flex items-center justify-between">
-        {/* Left: OKX Logo & Nav Items */}
+        {/* Left: TVN Logo & Nav Items */}
         <div className="flex items-center space-x-6">
-          {/* OKX Iconic Geometric Logo */}
+          {/* TVN Iconic Geometric Logo */}
           <Link to="/" className="flex items-center space-x-2 group">
             <div className="flex items-center space-x-0.5 tracking-tighter text-lg font-black text-white">
-              <span className="inline-block px-1 bg-white text-black font-extrabold rounded-xs leading-none py-0.5 mr-0.5 text-xs">
-                OK
+              <span className="inline-block px-1.5 bg-[#00c076] text-black font-extrabold rounded-xs leading-none py-0.5 mr-0.5 text-xs">
+                TV
               </span>
-              <span className="tracking-widest">X</span>
+              <span className="tracking-widest">N</span>
             </div>
           </Link>
  

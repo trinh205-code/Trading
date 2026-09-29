@@ -59,7 +59,7 @@ export const TickerHeader: React.FC<TickerHeaderProps> = ({
               onMouseLeave={() => setDropdownOpen(false)}
             >
               <div className="px-3 py-1.5 border-b border-[#262626] font-semibold text-[#888888] text-[10px] uppercase">
-                Chọn cặp giao dịch OKX
+                Chọn cặp giao dịch TVN
               </div>
               {markets.map((m) => (
                 <div
