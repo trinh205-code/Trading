@@ -35,11 +35,6 @@ import { TradeResponse } from '../../types/order';
 import { futuresApi } from '../../api/futuresApi';
 import { orderApi } from '../../api/orderApi';
 import { ExportReportModal } from '../../components/trading/ExportReportModal';
-import {
-  exportOrdersToCsv,
-  exportTradesToCsv,
-  exportPositionsToCsv,
-} from '../../utils/exportCsv';
 import { WalletProfitChart } from '../../components/wallet/WalletProfitChart';
 
 type MainTab = 'overview' | 'funding' | 'trading' | 'orderCenter';
