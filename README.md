@@ -197,12 +197,7 @@ Tạo database mới trong MySQL:
 CREATE DATABASE Binance CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-Cập nhật thông tin kết nối trong `Trading/src/main/resources/application.properties` nếu cần:
-```properties
-spring.datasource.url=jdbc:mysql://localhost:3307/Binance
-spring.datasource.username=root
-spring.datasource.password=root123
-```
+> **Lưu ý**: Cập nhật thông tin kết nối và mật khẩu MySQL trong file `Trading/src/main/resources/application.properties` phù hợp với cấu hình máy của bạn.
 
 ---
 
