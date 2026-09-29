@@ -5,10 +5,12 @@ import com.slayer.binacet.dto.request.TransferRequest;
 import com.slayer.binacet.dto.request.TransferWalletRequest;
 import com.slayer.binacet.dto.response.FuturesWalletResponse;
 import com.slayer.binacet.entity.FuturesWallet;
+import com.slayer.binacet.entity.FuturesWalletTransaction;
 import com.slayer.binacet.entity.User;
 import com.slayer.binacet.entity.WalletBalance;
 import com.slayer.binacet.mapper.FuturesWalletMapper;
 import com.slayer.binacet.repository.FuturesWalletRepository;
+import com.slayer.binacet.repository.FuturesWalletTransactionRepository;
 import com.slayer.binacet.repository.MarketRepository;
 import com.slayer.binacet.repository.UserRepository;
 import com.slayer.binacet.repository.WalletBalanceRepository;
@@ -32,6 +34,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class FuturesWalletServiceImpl implements FuturesWalletService {
     private final FuturesWalletRepository futuresWalletRepository;
+    private final FuturesWalletTransactionRepository futuresWalletTransactionRepository;
     private final WalletBalanceRepository walletBalanceRepository;
     private final UserRepository userRepository;
 
@@ -74,6 +77,16 @@ public class FuturesWalletServiceImpl implements FuturesWalletService {
         walletBalanceRepository.save(spot);
         futuresWalletRepository.save(futuresWallet);
 
+        FuturesWalletTransaction tx = FuturesWalletTransaction.builder()
+                .walletId(futuresWallet.getId())
+                .userId(currentUser.getId())
+                .transactionType("credit")
+                .amount(amount)
+                .currencyShortName(currency)
+                .reason("SPOT_TO_FUTURES")
+                .build();
+        futuresWalletTransactionRepository.save(tx);
+
         return futuresWalletMapper.toResponse(futuresWallet);
     }
 
@@ -98,6 +111,16 @@ public class FuturesWalletServiceImpl implements FuturesWalletService {
         spot.setBalance(addSpot);
         walletBalanceRepository.save(spot);
         futuresWalletRepository.save(futuresWallet);
+
+        FuturesWalletTransaction tx = FuturesWalletTransaction.builder()
+                .walletId(futuresWallet.getId())
+                .userId(userId)
+                .transactionType("debit")
+                .amount(amount)
+                .currencyShortName(currency)
+                .reason("FUTURES_TO_SPOT")
+                .build();
+        futuresWalletTransactionRepository.save(tx);
 
         return futuresWalletMapper.toResponse(futuresWallet);
     }

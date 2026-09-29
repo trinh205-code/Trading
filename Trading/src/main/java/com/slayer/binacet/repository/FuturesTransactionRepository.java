@@ -18,4 +18,7 @@ public interface FuturesTransactionRepository extends JpaRepository<FuturesTrans
     Page<FuturesTransaction> findUserTransactions(@Param("userId") String userId,
                                                   @Param("symbol") String symbol,
                                                   Pageable pageable);
+
+    @Query("SELECT t FROM FuturesTransaction t JOIN t.position p WHERE p.user.id = :userId ORDER BY t.createdAt DESC")
+    java.util.List<FuturesTransaction> findAllUserTransactions(@Param("userId") String userId);
 }

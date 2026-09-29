@@ -21,6 +21,8 @@ public interface TradeRepository extends JpaRepository<Trade, Long> {
                                @Param("symbol") String symbol,
                                Pageable pageable);
 
+    @Query("SELECT t FROM Trade t JOIN t.order o WHERE o.user.id = :userId ORDER BY t.timestamp DESC")
+    java.util.List<Trade> findAllUserTrades(@Param("userId") String userId);
 
     Page<Trade> findBySymbol(String symbol, Pageable pageable);
 }

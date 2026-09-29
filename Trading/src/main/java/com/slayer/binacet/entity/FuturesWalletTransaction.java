@@ -26,6 +26,9 @@ public class FuturesWalletTransaction {
     @Column(name = "wallet_id", nullable = false)
     private String walletId;
 
+    @Column(name = "user_id")
+    private String userId;
+
     private String transactionType;    // credit, debit
     @Column(precision = 36, scale = 18)
     private BigDecimal amount;

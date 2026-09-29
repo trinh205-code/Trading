@@ -14,4 +14,5 @@ public interface FuturesTradeRepository extends JpaRepository<FuturesTrade, Long
     Page<FuturesTrade> findByOrder_User_IdAndSymbol(String userId, String symbol, Pageable pageable);
     Page<FuturesTrade> findByUserIdOrderByTimestampDesc(String userId, Pageable pageable);
     Page<FuturesTrade> findByUserIdAndSymbolOrderByTimestampDesc(String userId, String symbol, Pageable pageable);
+    java.util.List<FuturesTrade> findByUserIdOrderByTimestampDesc(String userId);
 }
