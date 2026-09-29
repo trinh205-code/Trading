@@ -34,14 +34,11 @@ import {
 import { TradeResponse } from '../../types/order';
 import { futuresApi } from '../../api/futuresApi';
 import { orderApi } from '../../api/orderApi';
-import { cashFlowApi } from '../../api/cashFlowApi';
-import { CashFlowItem, CashFlowSummary } from '../../types/cashFlow';
 import { ExportReportModal } from '../../components/trading/ExportReportModal';
 import {
   exportOrdersToCsv,
   exportTradesToCsv,
   exportPositionsToCsv,
-  exportCashFlowToCsv,
 } from '../../utils/exportCsv';
 import { WalletProfitChart } from '../../components/wallet/WalletProfitChart';
 
@@ -88,7 +85,7 @@ export const WalletPage: React.FC = () => {
   const [transferLoading, setTransferLoading] = useState(false);
   const [transferMsg, setTransferMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const [orderSubTab, setOrderSubTab] = useState<'open' | 'history' | 'posHistory' | 'trades' | 'cashFlow'>('open');
+  const [orderSubTab, setOrderSubTab] = useState<'open' | 'history' | 'posHistory' | 'trades'>('open');
   const [orderSymbolFilter, setOrderSymbolFilter] = useState('');
   const [orderTypeFilter, setOrderTypeFilter] = useState('ALL');
   const [orderMarketFilter, setOrderMarketFilter] = useState<'ALL' | 'SPOT' | 'FUTURES'>('ALL');
@@ -104,12 +101,6 @@ export const WalletPage: React.FC = () => {
 
   const [positionHistory, setPositionHistory] = useState<FuturesPositionHistoryResponse[]>([]);
   const [loadingPosHistory, setLoadingPosHistory] = useState<boolean>(false);
-
-  const [cashFlowItems, setCashFlowItems] = useState<CashFlowItem[]>([]);
-  const [cashFlowSummary, setCashFlowSummary] = useState<CashFlowSummary | null>(null);
-  const [loadingCashFlow, setLoadingCashFlow] = useState<boolean>(false);
-  const [cashFlowTypeFilter, setCashFlowTypeFilter] = useState<string>('ALL');
-  const [cashFlowTimeFilter, setCashFlowTimeFilter] = useState<'ALL' | '24H' | '7D' | '30D'>('ALL');
   const [exportModalOpen, setExportModalOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -208,20 +199,6 @@ export const WalletPage: React.FC = () => {
       // ignore
     } finally {
       setLoadingTrades(false);
-    }
-
-    // Fetch Cash Flow
-    setLoadingCashFlow(true);
-    try {
-      const cfRes = await cashFlowApi.getCashFlow();
-      if (cfRes.data) {
-        setCashFlowItems(cfRes.data.items || []);
-        setCashFlowSummary(cfRes.data.summary || null);
-      }
-    } catch {
-      // ignore
-    } finally {
-      setLoadingCashFlow(false);
     }
   };
 
@@ -580,25 +557,6 @@ export const WalletPage: React.FC = () => {
 
     return list.sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
   }, [spotTrades, futuresTrades, orderMarketFilter]);
-
-  const filteredCashFlowItems = useMemo(() => {
-    let items = [...cashFlowItems];
-    if (cashFlowTypeFilter !== 'ALL') {
-      items = items.filter((item) => item.type === cashFlowTypeFilter);
-    }
-    if (cashFlowTimeFilter !== 'ALL') {
-      const now = Date.now();
-      const rangeMs =
-        cashFlowTimeFilter === '24H'
-          ? 24 * 60 * 60 * 1000
-          : cashFlowTimeFilter === '7D'
-          ? 7 * 24 * 60 * 60 * 1000
-          : 30 * 24 * 60 * 60 * 1000;
-      const cutoff = now - rangeMs;
-      items = items.filter((item) => new Date(item.timestamp).getTime() >= cutoff);
-    }
-    return items;
-  }, [cashFlowItems, cashFlowTypeFilter, cashFlowTimeFilter]);
 
   const openOrders = combinedOpenOrders;
   const historyOrders = combinedHistoryOrders;
@@ -1258,54 +1216,41 @@ export const WalletPage: React.FC = () => {
               >
                 Lịch sử giao dịch ({combinedTrades.length})
               </button>
-              <button
-                onClick={() => setOrderSubTab('cashFlow')}
-                className={`font-bold transition-colors pb-1 border-b-2 whitespace-nowrap flex items-center space-x-1.5 ${
-                  orderSubTab === 'cashFlow' ? 'text-amber-400 border-amber-400' : 'text-[#777777] border-transparent hover:text-amber-300'
-                }`}
-              >
-                <DollarSign className="w-3.5 h-3.5 text-amber-400" />
-                <span>Dòng tiền vào/ra ({cashFlowItems.length})</span>
-              </button>
             </div>
 
             {/* Filter Bar */}
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6 text-xs">
               <div className="flex flex-wrap items-center gap-3">
                 {/* Market filter */}
-                {orderSubTab !== 'cashFlow' && (
-                  <div className="flex items-center space-x-2">
-                    <span className="text-[#777777]">Thị trường:</span>
-                    <select
-                      value={orderMarketFilter}
-                      onChange={(e) => setOrderMarketFilter(e.target.value as any)}
-                      className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-[#00c076]"
-                    >
-                      <option value="ALL">Tất cả (Spot & Futures)</option>
-                      <option value="SPOT">Giao ngay (Spot)</option>
-                      <option value="FUTURES">Hợp đồng (Futures)</option>
-                    </select>
-                  </div>
-                )}
+                <div className="flex items-center space-x-2">
+                  <span className="text-[#777777]">Thị trường:</span>
+                  <select
+                    value={orderMarketFilter}
+                    onChange={(e) => setOrderMarketFilter(e.target.value as any)}
+                    className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-[#00c076]"
+                  >
+                    <option value="ALL">Tất cả (Spot & Futures)</option>
+                    <option value="SPOT">Giao ngay (Spot)</option>
+                    <option value="FUTURES">Hợp đồng (Futures)</option>
+                  </select>
+                </div>
 
                 {/* Symbol filter */}
-                {orderSubTab !== 'cashFlow' && (
-                  <div className="flex items-center space-x-2">
-                    <span className="text-[#777777]">Công cụ:</span>
-                    <select
-                      value={orderSymbolFilter}
-                      onChange={(e) => setOrderSymbolFilter(e.target.value)}
-                      className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-[#00c076]"
-                    >
-                      <option value="">Tất cả cặp coin</option>
-                      {markets.map((m) => (
-                        <option key={m.symbol} value={m.symbol}>
-                          {m.symbol}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                <div className="flex items-center space-x-2">
+                  <span className="text-[#777777]">Công cụ:</span>
+                  <select
+                    value={orderSymbolFilter}
+                    onChange={(e) => setOrderSymbolFilter(e.target.value)}
+                    className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-[#00c076]"
+                  >
+                    <option value="">Tất cả cặp coin</option>
+                    {markets.map((m) => (
+                      <option key={m.symbol} value={m.symbol}>
+                        {m.symbol}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
                 {/* Order Type filter */}
                 {(orderSubTab === 'open' || orderSubTab === 'history') && (
@@ -1321,41 +1266,6 @@ export const WalletPage: React.FC = () => {
                       <option value="MARKET">Thị trường (Market)</option>
                     </select>
                   </div>
-                )}
-
-                {/* Cash Flow filters */}
-                {orderSubTab === 'cashFlow' && (
-                  <>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-[#777777]">Loại dòng tiền:</span>
-                      <select
-                        value={cashFlowTypeFilter}
-                        onChange={(e) => setCashFlowTypeFilter(e.target.value)}
-                        className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-amber-400"
-                      >
-                        <option value="ALL">Tất cả (Nạp, Rút, Chuyển ví, Phí, Lời/Lỗ)</option>
-                        <option value="DEPOSIT">Nạp tiền</option>
-                        <option value="WITHDRAW">Rút tiền</option>
-                        <option value="TRANSFER">Chuyển ví Spot ⇄ Futures</option>
-                        <option value="TRADING_FEE">Phí giao dịch</option>
-                        <option value="REALIZED_PNL">Lời/Lỗ đã chốt</option>
-                      </select>
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <span className="text-[#777777]">Thời gian:</span>
-                      <select
-                        value={cashFlowTimeFilter}
-                        onChange={(e) => setCashFlowTimeFilter(e.target.value as any)}
-                        className="bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-amber-400"
-                      >
-                        <option value="ALL">Toàn bộ thời gian</option>
-                        <option value="24H">24 Giờ qua</option>
-                        <option value="7D">7 Ngày qua</option>
-                        <option value="30D">30 Ngày qua</option>
-                      </select>
-                    </div>
-                  </>
                 )}
               </div>
 
@@ -1374,7 +1284,7 @@ export const WalletPage: React.FC = () => {
                   className="px-3 py-1.5 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a] hover:bg-[#222222] text-[#cccccc] hover:text-white flex items-center space-x-1.5 transition-colors cursor-pointer"
                   title="Làm mới dữ liệu"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 ${loadingFuturesOrders || loadingTrades || loadingPosHistory || loadingCashFlow ? 'animate-spin text-[#00c076]' : ''}`} />
+                  <RefreshCw className={`w-3.5 h-3.5 ${loadingFuturesOrders || loadingTrades || loadingPosHistory ? 'animate-spin text-[#00c076]' : ''}`} />
                   <span>Làm mới</span>
                 </button>
               </div>
@@ -1722,244 +1632,6 @@ export const WalletPage: React.FC = () => {
                 </table>
               </div>
             )}
-
-            {/* Content Display: 5. TỔNG HỢP DÒNG TIỀN VÀO/RA */}
-            {orderSubTab === 'cashFlow' && (
-              <div className="space-y-6">
-                {/* 1. Summary Metric Cards */}
-                <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-                  {/* Tổng nạp */}
-                  <div className="bg-[#161616] border border-[#262626] rounded-xl p-3.5 flex flex-col justify-between">
-                    <div className="flex items-center space-x-1.5 text-gray-400 mb-1">
-                      <ArrowDownLeft className="w-3.5 h-3.5 text-[#00c076]" />
-                      <span className="text-[11px] font-medium">Tổng Nạp Tiền</span>
-                    </div>
-                    <div className="text-sm font-bold text-[#00c076] font-mono">
-                      +${Number(cashFlowSummary?.totalDeposit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </div>
-                  </div>
-
-                  {/* Tổng rút */}
-                  <div className="bg-[#161616] border border-[#262626] rounded-xl p-3.5 flex flex-col justify-between">
-                    <div className="flex items-center space-x-1.5 text-gray-400 mb-1">
-                      <ArrowUpRight className="w-3.5 h-3.5 text-[#ff5b5b]" />
-                      <span className="text-[11px] font-medium">Tổng Rút Tiền</span>
-                    </div>
-                    <div className="text-sm font-bold text-[#ff5b5b] font-mono">
-                      -${Number(cashFlowSummary?.totalWithdraw || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </div>
-                  </div>
-
-                  {/* Chuyển ví nội bộ */}
-                  <div className="bg-[#161616] border border-[#262626] rounded-xl p-3.5 flex flex-col justify-between">
-                    <div className="flex items-center space-x-1.5 text-gray-400 mb-1">
-                      <ArrowLeftRight className="w-3.5 h-3.5 text-blue-400" />
-                      <span className="text-[11px] font-medium">Chuyển Spot ⇄ Futures</span>
-                    </div>
-                    <div className="text-xs font-bold text-blue-300 font-mono">
-                      {Number(cashFlowSummary?.totalTransferIn || 0).toLocaleString('en-US', { minimumFractionDigits: 1 })} / {Number(cashFlowSummary?.totalTransferOut || 0).toLocaleString('en-US', { minimumFractionDigits: 1 })}
-                    </div>
-                  </div>
-
-                  {/* Phí giao dịch */}
-                  <div className="bg-[#161616] border border-[#262626] rounded-xl p-3.5 flex flex-col justify-between">
-                    <div className="flex items-center space-x-1.5 text-gray-400 mb-1">
-                      <DollarSign className="w-3.5 h-3.5 text-amber-400" />
-                      <span className="text-[11px] font-medium">Phí Đã Trả</span>
-                    </div>
-                    <div className="text-sm font-bold text-amber-400 font-mono">
-                      -${Number(cashFlowSummary?.totalTradingFee || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </div>
-                  </div>
-
-                  {/* Lời / Lỗ đã chốt */}
-                  <div className="bg-[#161616] border border-[#262626] rounded-xl p-3.5 flex flex-col justify-between">
-                    <div className="flex items-center space-x-1.5 text-gray-400 mb-1">
-                      <TrendingUp className="w-3.5 h-3.5 text-[#00c076]" />
-                      <span className="text-[11px] font-medium">Lời / Lỗ Đã Chốt</span>
-                    </div>
-                    <div
-                      className={`text-sm font-bold font-mono ${
-                        Number(cashFlowSummary?.totalRealizedPnl || 0) >= 0 ? 'text-[#00c076]' : 'text-[#ff5b5b]'
-                      }`}
-                    >
-                      {Number(cashFlowSummary?.totalRealizedPnl || 0) >= 0 ? '+' : ''}$
-                      {Number(cashFlowSummary?.totalRealizedPnl || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </div>
-                  </div>
-
-                  {/* Dòng tiền ròng */}
-                  <div className="bg-[#161616] border border-[#00c076]/30 rounded-xl p-3.5 flex flex-col justify-between">
-                    <div className="flex items-center space-x-1.5 text-[#00c076] mb-1">
-                      <Shield className="w-3.5 h-3.5" />
-                      <span className="text-[11px] font-bold">Dòng Tiền Ròng</span>
-                    </div>
-                    <div
-                      className={`text-sm font-bold font-mono ${
-                        Number(cashFlowSummary?.netCashFlow || 0) >= 0 ? 'text-[#00c076]' : 'text-[#ff5b5b]'
-                      }`}
-                    >
-                      {Number(cashFlowSummary?.netCashFlow || 0) >= 0 ? '+' : ''}$
-                      {Number(cashFlowSummary?.netCashFlow || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </div>
-                  </div>
-                </div>
-
-                {/* 2. Quick CSV button */}
-                <div className="flex justify-end">
-                  <button
-                    onClick={() => exportCashFlowToCsv(filteredCashFlowItems, 'Tong_Hop_Dong_Tien.csv')}
-                    className="px-3.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center space-x-1.5 transition-colors cursor-pointer font-semibold text-xs"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Xuất CSV Bảng Dòng Tiền</span>
-                  </button>
-                </div>
-
-                {/* 3. Cash Flow Table */}
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left font-mono">
-                    <thead>
-                      <tr className="text-[#666666] text-[11px] border-b border-[#1e1e1e] bg-[#161616]">
-                        <th className="py-3 px-4">Thời gian</th>
-                        <th className="py-3 px-4">Loại Dòng Tiền</th>
-                        <th className="py-3 px-4">Thị Trường / Ví</th>
-                        <th className="py-3 px-4 text-right">Biến Động Số Tiền</th>
-                        <th className="py-3 px-4 text-right">Phí Kèm Theo</th>
-                        <th className="py-3 px-4 text-center">Trạng Thái</th>
-                        <th className="py-3 px-4">Mã Tham Chiếu</th>
-                        <th className="py-3 px-4">Chi Tiết / Diễn Giải</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#1e1e1e] text-xs">
-                      {filteredCashFlowItems.length === 0 ? (
-                        <tr>
-                          <td colSpan={8} className="py-16 text-center text-[#555555] font-sans">
-                            <div className="flex flex-col items-center justify-center space-y-2">
-                              <div className="w-12 h-12 rounded-full bg-[#1a1a1a] border border-[#262626] flex items-center justify-center text-[#666666]">
-                                <HelpCircle className="w-6 h-6" />
-                              </div>
-                              <span className="text-sm">Không có dữ liệu dòng tiền trong khoảng thời gian này</span>
-                            </div>
-                          </td>
-                        </tr>
-                      ) : (
-                        filteredCashFlowItems.map((item) => {
-                          const timeStr = item.timestamp ? new Date(item.timestamp).toLocaleString('vi-VN') : '--';
-                          const amt = Number(item.amount || 0);
-
-                          let badge = (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-500/10 text-gray-400">
-                              {item.type}
-                            </span>
-                          );
-                          let amountColor = 'text-white';
-                          let amountPrefix = '';
-
-                          if (item.type === 'DEPOSIT') {
-                            badge = (
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#00c076]/10 text-[#00c076] border border-[#00c076]/20 flex items-center space-x-1 w-fit">
-                                <ArrowDownLeft className="w-3 h-3" />
-                                <span>Nạp tiền</span>
-                              </span>
-                            );
-                            amountColor = 'text-[#00c076] font-bold';
-                            amountPrefix = '+';
-                          } else if (item.type === 'WITHDRAW') {
-                            badge = (
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#ff5b5b]/10 text-[#ff5b5b] border border-[#ff5b5b]/20 flex items-center space-x-1 w-fit">
-                                <ArrowUpRight className="w-3 h-3" />
-                                <span>Rút tiền</span>
-                              </span>
-                            );
-                            amountColor = 'text-[#ff5b5b] font-bold';
-                          } else if (item.type === 'TRANSFER') {
-                            badge = (
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center space-x-1 w-fit">
-                                <ArrowLeftRight className="w-3 h-3" />
-                                <span>Chuyển ví</span>
-                              </span>
-                            );
-                            amountColor = 'text-blue-300 font-bold';
-                          } else if (item.type === 'TRADING_FEE') {
-                            badge = (
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-400/10 text-amber-400 border border-amber-400/20 flex items-center space-x-1 w-fit">
-                                <DollarSign className="w-3 h-3" />
-                                <span>Phí giao dịch</span>
-                              </span>
-                            );
-                            amountColor = 'text-amber-400 font-bold';
-                          } else if (item.type === 'REALIZED_PNL') {
-                            const isProfit = amt >= 0;
-                            badge = (
-                              <span
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center space-x-1 w-fit ${
-                                  isProfit
-                                    ? 'bg-[#00c076]/10 text-[#00c076] border border-[#00c076]/20'
-                                    : 'bg-[#ff5b5b]/10 text-[#ff5b5b] border border-[#ff5b5b]/20'
-                                }`}
-                              >
-                                {isProfit ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                                <span>{isProfit ? 'Lời đã chốt' : 'Lỗ đã chốt'}</span>
-                              </span>
-                            );
-                            amountColor = isProfit ? 'text-[#00c076] font-bold' : 'text-[#ff5b5b] font-bold';
-                            amountPrefix = isProfit ? '+' : '';
-                          }
-
-                          return (
-                            <tr key={item.id} className="hover:bg-[#161616] transition-colors">
-                              <td className="py-3 px-4 text-[#888888]">{timeStr}</td>
-                              <td className="py-3 px-4">{badge}</td>
-                              <td className="py-3 px-4 text-[#cccccc]">
-                                {item.subType === 'SPOT_TO_FUTURES'
-                                  ? 'Spot ➔ Futures'
-                                  : item.subType === 'FUTURES_TO_SPOT'
-                                  ? 'Futures ➔ Spot'
-                                  : item.subType === 'SPOT_FEE'
-                                  ? 'Ví Spot'
-                                  : item.subType === 'FUTURES_FEE' || item.type === 'REALIZED_PNL'
-                                  ? 'Ví Futures'
-                                  : 'Ví Nạp (VNPay)'}
-                              </td>
-                              <td className={`py-3 px-4 text-right font-mono ${amountColor}`}>
-                                {amountPrefix}
-                                {amt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}{' '}
-                                {item.currency}
-                              </td>
-                              <td className="py-3 px-4 text-right text-[#888888] font-mono">
-                                {item.fee && item.fee > 0 ? `${item.fee.toFixed(4)} ${item.currency}` : '-'}
-                              </td>
-                              <td className="py-3 px-4 text-center">
-                                <span
-                                  className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
-                                    item.status === 'COMPLETED'
-                                      ? 'bg-[#00c076]/10 text-[#00c076]'
-                                      : item.status === 'PENDING'
-                                      ? 'bg-amber-400/10 text-amber-400'
-                                      : 'bg-[#ff5b5b]/10 text-[#ff5b5b]'
-                                  }`}
-                                >
-                                  {item.status === 'COMPLETED'
-                                    ? 'Thành công'
-                                    : item.status === 'PENDING'
-                                    ? 'Đang xử lý'
-                                    : 'Thất bại'}
-                                </span>
-                              </td>
-                              <td className="py-3 px-4 text-[#888888] text-[11px] font-mono">
-                                {item.referenceId ? `${item.referenceId.slice(0, 14)}...` : '--'}
-                              </td>
-                              <td className="py-3 px-4 text-[#cccccc]">{item.description}</td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>
@@ -2096,11 +1768,8 @@ export const WalletPage: React.FC = () => {
         orders={historyOrders.concat(openOrders)}
         trades={combinedTrades}
         positions={positionHistory}
-        cashFlowItems={filteredCashFlowItems}
         defaultTab={
-          orderSubTab === 'cashFlow'
-            ? 'cashFlow'
-            : orderSubTab === 'posHistory'
+          orderSubTab === 'posHistory'
             ? 'positions'
             : orderSubTab === 'trades'
             ? 'trades'

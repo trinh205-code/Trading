@@ -4,7 +4,6 @@ import {
   exportOrdersToCsv,
   exportTradesToCsv,
   exportPositionsToCsv,
-  exportCashFlowToCsv,
 } from '../../utils/exportCsv';
 
 interface ExportReportModalProps {
@@ -13,8 +12,7 @@ interface ExportReportModalProps {
   orders?: any[];
   trades?: any[];
   positions?: any[];
-  cashFlowItems?: any[];
-  defaultTab?: 'orders' | 'trades' | 'positions' | 'cashFlow';
+  defaultTab?: 'orders' | 'trades' | 'positions';
 }
 
 export const ExportReportModal: React.FC<ExportReportModalProps> = ({
@@ -23,10 +21,9 @@ export const ExportReportModal: React.FC<ExportReportModalProps> = ({
   orders = [],
   trades = [],
   positions = [],
-  cashFlowItems = [],
   defaultTab = 'orders',
 }) => {
-  const [selectedDataset, setSelectedDataset] = useState<'orders' | 'trades' | 'positions' | 'cashFlow'>(defaultTab);
+  const [selectedDataset, setSelectedDataset] = useState<'orders' | 'trades' | 'positions'>(defaultTab);
   const [dateRange, setDateRange] = useState<'ALL' | '24H' | '7D' | '30D' | '90D'>('ALL');
   const [isExporting, setIsExporting] = useState(false);
 
@@ -65,9 +62,6 @@ export const ExportReportModal: React.FC<ExportReportModalProps> = ({
       } else if (selectedDataset === 'positions') {
         const filtered = filterByDate(positions, 'closeTime');
         exportPositionsToCsv(filtered, `BaoCao_LichSuViThe_${today}.csv`);
-      } else if (selectedDataset === 'cashFlow') {
-        const filtered = filterByDate(cashFlowItems, 'timestamp');
-        exportCashFlowToCsv(filtered, `BaoCao_TongHopDongTien_${today}.csv`);
       }
       onClose();
     } catch (err) {
@@ -107,7 +101,7 @@ export const ExportReportModal: React.FC<ExportReportModalProps> = ({
               <Filter className="w-3.5 h-3.5 text-amber-400" />
               <span>1. Chọn loại dữ liệu cần xuất</span>
             </label>
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-3 gap-2.5">
               <button
                 type="button"
                 onClick={() => setSelectedDataset('orders')}
@@ -118,7 +112,7 @@ export const ExportReportModal: React.FC<ExportReportModalProps> = ({
                 }`}
               >
                 <div className="font-bold text-xs">Lệnh Giao Dịch</div>
-                <div className="text-[10px] text-gray-400 mt-0.5">Spot & Futures ({orders.length} lệnh)</div>
+                <div className="text-[10px] text-gray-400 mt-0.5">Spot & Futures ({orders.length})</div>
               </button>
 
               <button
@@ -131,7 +125,7 @@ export const ExportReportModal: React.FC<ExportReportModalProps> = ({
                 }`}
               >
                 <div className="font-bold text-xs">Lịch Sử Khớp Lệnh</div>
-                <div className="text-[10px] text-gray-400 mt-0.5">Khớp lệnh & Phí ({trades.length} giao dịch)</div>
+                <div className="text-[10px] text-gray-400 mt-0.5">Khớp lệnh ({trades.length})</div>
               </button>
 
               <button
@@ -143,21 +137,8 @@ export const ExportReportModal: React.FC<ExportReportModalProps> = ({
                     : 'border-[#2b313a] bg-[#14161c] text-gray-300 hover:border-gray-500'
                 }`}
               >
-                <div className="font-bold text-xs">Lịch Sử Vị Thế Futures</div>
-                <div className="text-[10px] text-gray-400 mt-0.5">Lời/Lỗ & Giá chốt ({positions.length} vị thế)</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSelectedDataset('cashFlow')}
-                className={`p-3 rounded-xl border text-left transition-all ${
-                  selectedDataset === 'cashFlow'
-                    ? 'border-emerald-500 bg-emerald-500/10 text-white'
-                    : 'border-[#2b313a] bg-[#14161c] text-gray-300 hover:border-gray-500'
-                }`}
-              >
-                <div className="font-bold text-xs">Tổng Hợp Dòng Tiền</div>
-                <div className="text-[10px] text-gray-400 mt-0.5">Nạp/Rút/Chuyển ví/PnL ({cashFlowItems.length} mục)</div>
+                <div className="font-bold text-xs">Lịch Sử Vị Thế</div>
+                <div className="text-[10px] text-gray-400 mt-0.5">Vị thế đóng ({positions.length})</div>
               </button>
             </div>
           </div>
