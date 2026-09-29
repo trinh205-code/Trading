@@ -39,10 +39,12 @@ export const WalletPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<MainTab>(tabFromUrl || 'overview');
 
   useEffect(() => {
-    if (tabFromUrl && ['overview', 'funding', 'trading', 'orderCenter'].includes(tabFromUrl)) {
+    if (tabFromUrl === 'orderCenter') {
+      navigate('/orders', { replace: true });
+    } else if (tabFromUrl && ['overview', 'funding', 'trading'].includes(tabFromUrl)) {
       setActiveTab(tabFromUrl);
     }
-  }, [tabFromUrl]);
+  }, [tabFromUrl, navigate]);
 
   const handleTabChange = (tab: MainTab) => {
     setActiveTab(tab);
@@ -584,14 +586,10 @@ export const WalletPage: React.FC = () => {
               Ví Futures
             </button>
             <button
-              onClick={() => handleTabChange('orderCenter')}
-              className={`py-3.5 border-b-2 transition-colors whitespace-nowrap ${
-                activeTab === 'orderCenter'
-                  ? 'text-white border-white font-bold'
-                  : 'text-[#777777] border-transparent hover:text-white'
-              }`}
+              onClick={() => navigate('/orders')}
+              className="py-3.5 border-b-2 transition-colors whitespace-nowrap text-[#777777] border-transparent hover:text-white"
             >
-              Trung tâm lệnh
+              Trung tâm lệnh ↗
             </button>
           </div>
 
