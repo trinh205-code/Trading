@@ -283,17 +283,6 @@ export const Header: React.FC = () => {
                 </div>
               )}
             </div>
-
-            <Link
-              to="/orders"
-              className={`px-2.5 py-1.5 rounded transition-colors ${
-                location.pathname.startsWith('/orders')
-                  ? 'text-white font-bold bg-[#1a1a1a]'
-                  : 'text-[#cccccc] hover:text-white hover:bg-[#1a1a1a]'
-              }`}
-            >
-              Lệnh
-            </Link>
           </nav>
         </div>
 
@@ -376,7 +365,7 @@ export const Header: React.FC = () => {
                       <span className="font-medium">Ví Futures</span>
                     </Link>
                     <Link
-                      to="/orders"
+                      to="/wallet?tab=orderCenter"
                       onClick={() => setAssetsMenuOpen(false)}
                       className="flex items-center justify-between px-4 py-2.5 text-[#cccccc] hover:text-white hover:bg-[#222222] transition-colors border-t border-[#262626]"
                     >
@@ -414,7 +403,7 @@ export const Header: React.FC = () => {
                       <span>Hồ sơ & Bảo mật</span>
                     </Link>
                     <Link
-                      to="/orders"
+                      to="/wallet?tab=orderCenter"
                       onClick={() => setUserMenuOpen(false)}
                       className="flex items-center space-x-2 px-4 py-2.5 text-[#cccccc] hover:text-white hover:bg-[#222222]"
                     >

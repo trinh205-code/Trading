@@ -42,7 +42,7 @@ export const AppRoutes: React.FC = () => {
 
         {/* Protected Routes */}
         <Route element={<ProtectedRoute />}>
-          <Route path="orders" element={<OrdersPage />} />
+          <Route path="orders" element={<Navigate to="/wallet?tab=orderCenter" replace />} />
           <Route path="wallet" element={<WalletPage />} />
           <Route path="profile" element={<ProfilePage />} />
         </Route>
