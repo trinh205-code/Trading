@@ -11,6 +11,7 @@ import com.slayer.binacet.entity.Market;
 import com.slayer.binacet.entity.Order;
 import com.slayer.binacet.entity.User;
 import com.slayer.binacet.event.OrderProducer;
+import com.slayer.binacet.mapper.OrderEventMapper;
 import com.slayer.binacet.mapper.OrderMapper;
 import com.slayer.binacet.repository.MarketRepository;
 import com.slayer.binacet.repository.OrderRepository;
@@ -35,6 +36,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final MarketRepository marketRepository;
     private final OrderMapper orderMapper;
+    private final OrderEventMapper orderEventMapper;
     private final WalletServiceImpl walletServiceImpl;
     private final MarketPriceCache marketPriceCache;
     private final OrderProducer orderProducer;
@@ -104,35 +106,14 @@ public class OrderServiceImpl implements OrderService {
         }
 
         String clientOrderId = request.getClientOrderId() != null ? request.getClientOrderId() : UUID.randomUUID().toString();
-        Order order = Order.builder()
-                .clientOrderId(clientOrderId)
-                .user(currentUser)
-                .market(market)
-                .side(request.getSide())
-                .orderType(type)
-                .status(OrderStatus.NEW)
-                .pricePerUnit(orderPrice)
-                .totalQuantity(request.getQuantity())
-                .remainingQuantity(request.getQuantity())
-                .lockedAmount(amountToLock)
-                .build();
+        Order order = orderMapper.toEntity(request, currentUser, market, clientOrderId, type, orderPrice, amountToLock);
 
         Order savedOrder = orderRepository.save(order);
         log.info("User {} đặt lệnh {} {} thành công. OrderId: {}",
                 currentUser.getEmail(), order.getSide(), symbol, savedOrder.getId());
 
         try {
-            OrderEvent event = OrderEvent.builder()
-                    .orderId(order.getId())
-                    .symbol(order.getMarket().getSymbol())
-                    .side(order.getSide())
-                    .price(order.getPricePerUnit())
-                    .quantity(order.getTotalQuantity())
-                    .remainingQuantity(order.getRemainingQuantity())
-                    .timestamp(order.getCreatedAt() != null ? order.getCreatedAt() : Instant.now())
-                    .action("CREATE")
-                    .build();
-
+            OrderEvent event = orderEventMapper.toSpotOrderEvent(order, "CREATE");
             orderProducer.sendOrderToQueue(event);
         } catch (Exception e) {
             log.error("Lỗi khi đẩy lệnh {} vào Kafka: {}", savedOrder.getId(), e.getMessage());
