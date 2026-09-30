@@ -274,14 +274,7 @@ public class MarketServiceImpl implements MarketService {
         List<TopCoinResponse> topMarketCap = toTopList(marketRepository.findByStatusOrderByMarketCapDesc("TRADING", limit7));
         List<TopCoinResponse> topVolume = toTopList(marketRepository.findByStatusOrderByQuoteVolume24hDesc("TRADING", limit7));
 
-        return TopCoinsOverviewResponse.builder()
-                .highlights(highlights)
-                .gainers(gainers)
-                .losers(losers)
-                .newListings(newListings)
-                .topMarketCap(topMarketCap)
-                .topVolume(topVolume)
-                .build();
+        return marketMapper.toOverviewResponse(highlights, gainers, losers, newListings, topMarketCap, topVolume);
     }
 
     @Override
@@ -312,20 +305,10 @@ public class MarketServiceImpl implements MarketService {
     private List<TopCoinResponse> toTopList(List<Market> markets) {
         if (markets == null) return List.of();
         return markets.stream()
-                .map(m -> TopCoinResponse.builder()
-                        .symbol(m.getSymbol())
-                        .pair(m.getPair() != null ? m.getPair() : m.getBaseCurrencyShortName() + "/" + m.getTargetCurrencyShortName())
-                        .baseCurrency(m.getBaseCurrencyShortName())
-                        .targetCurrency(m.getTargetCurrencyShortName())
-                        .currentPrice(m.getCurrentPrice() != null ? m.getCurrentPrice() : marketPriceCache.getLastPrice(m.getSymbol()))
-                        .priceChange(m.getPriceChange())
-                        .priceChangePercent(m.getPriceChangePercent())
-                        .high24h(m.getHigh24h())
-                        .low24h(m.getLow24h())
-                        .volume24h(m.getVolume24h())
-                        .quoteVolume24h(m.getQuoteVolume24h())
-                        .marketCap(m.getMarketCap())
-                        .build())
+                .map(m -> {
+                    BigDecimal price = m.getCurrentPrice() != null ? m.getCurrentPrice() : marketPriceCache.getLastPrice(m.getSymbol());
+                    return marketMapper.toTopCoinResponse(m, price);
+                })
                 .toList();
     }
 
