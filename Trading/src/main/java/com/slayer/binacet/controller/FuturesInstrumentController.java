@@ -17,10 +17,10 @@ import java.util.List;
 @RequestMapping("/api/futures/instruments")
 @RequiredArgsConstructor
 public class FuturesInstrumentController {
-
+    
     private final FuturesInstrumentRepository instrumentRepository;
     private final MarketPriceCache marketPriceCache;
-    private final FuturesInstrumentResponseMapper instrumentResponseMapper;
+    private final FuturesInstrumentResponseMapper futuresInstrumentResponseMapper;
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<FuturesInstrumentResponse>>> getAllActiveInstruments() {
@@ -66,6 +66,6 @@ public class FuturesInstrumentController {
             realtimeLastPrice = instrument.getLastPrice();
         }
 
-        return instrumentResponseMapper.toResponse(instrument, realtimeLastPrice, realtimeMarkPrice);
+        return futuresInstrumentResponseMapper.toResponse(instrument, realtimeLastPrice, realtimeMarkPrice);
     }
 }
