@@ -71,6 +71,70 @@ public class FuturesOrderServiceImpl implements FuturesOrderService {
         return futuresOrderMapper.toResponse(savedOrder);
     }
 
+
+
+    @Override
+    @Transactional
+    public FuturesOrderResponse cancelFuturesOrder(String orderId) {
+        User user = getCurrentUser();
+        FuturesOrder order = futuresOrderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy lệnh"));
+
+        if (!order.getUser().getId().equals(user.getId())) {
+            throw new RuntimeException("Bạn không có quyền hủy lệnh này");
+        }
+
+        if (order.getStatus() != FuturesOrderStatus.OPEN && order.getStatus() != FuturesOrderStatus.PARTIALLY_FILLED) {
+            throw new RuntimeException("Chỉ có thể hủy lệnh đang chờ khớp");
+        }
+
+        // 1. Tính toán lượng Ký quỹ cần hoàn trả dựa trên số lượng chưa khớp
+        BigDecimal marginToRelease = order.getRemainingQuantity()
+                .multiply(order.getPrice())
+                .divide(order.getLeverage(), 18, RoundingMode.HALF_UP);
+
+        // 2. Mở khóa Ký quỹ trả về Ví Futures
+        FuturesWallet wallet = futuresWalletRepository.findForUpdate(
+                        user.getId(), order.getMarginCurrencyShortName())
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy ví Futures"));
+
+        wallet.setLockedBalance(wallet.getLockedBalance().subtract(marginToRelease).max(BigDecimal.ZERO));
+        wallet.setBalance(wallet.getBalance().add(marginToRelease));
+        futuresWalletRepository.save(wallet);
+
+        order.setCancelledQuantity(order.getRemainingQuantity());
+        order.setRemainingQuantity(BigDecimal.ZERO);
+        order.setStatus(FuturesOrderStatus.CANCELLED);
+        order.setUpdatedAt(Instant.now());
+
+        FuturesOrder savedOrder = futuresOrderRepository.save(order);
+
+        return futuresOrderMapper.toResponse(savedOrder);
+    }
+    
+    @Override
+    public Page<FuturesOrderResponse> getMyFuturesOrders(String symbol, String status, Pageable pageable) {
+        Page<FuturesOrder> orders;
+        String userId = getCurrentUser().getId();
+
+        // Xử lý truy vấn linh hoạt dựa trên các bộ lọc tùy chọn
+        if (symbol != null && !symbol.isEmpty() && status != null && !status.isEmpty()) {
+            orders = futuresOrderRepository.findByUserIdAndInstrument_SymbolAndStatus(
+                    userId, symbol.toUpperCase(), FuturesOrderStatus.valueOf(status.toUpperCase()), pageable);
+        } else if (symbol != null && !symbol.isEmpty()) {
+            orders = futuresOrderRepository.findByUserIdAndInstrument_Symbol(
+                    userId, symbol.toUpperCase(), pageable);
+        } else if (status != null && !status.isEmpty()) {
+            orders = futuresOrderRepository.findByUserIdAndStatus(
+                    userId, FuturesOrderStatus.valueOf(status.toUpperCase()), pageable);
+        } else {
+            orders = futuresOrderRepository.findByUserId(userId, pageable);
+        }
+
+        return orders.map(futuresOrderMapper::toResponse);
+    }
+
+
     private BigDecimal validateAndCalculateOrderPrice(CreateFuturesOrderRequest request, FuturesInstrument instrument, User user) {
         BigDecimal markPrice = futuresMarketSyncService.getMarkPrice(request.getSymbol());
 
@@ -211,66 +275,6 @@ public class FuturesOrderServiceImpl implements FuturesOrderService {
         }
     }
 
-    @Override
-    @Transactional
-    public FuturesOrderResponse cancelFuturesOrder(String orderId) {
-        User user = getCurrentUser();
-        FuturesOrder order = futuresOrderRepository.findById(orderId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy lệnh"));
-
-        if (!order.getUser().getId().equals(user.getId())) {
-            throw new RuntimeException("Bạn không có quyền hủy lệnh này");
-        }
-
-        if (order.getStatus() != FuturesOrderStatus.OPEN && order.getStatus() != FuturesOrderStatus.PARTIALLY_FILLED) {
-            throw new RuntimeException("Chỉ có thể hủy lệnh đang chờ khớp");
-        }
-
-        // 1. Tính toán lượng Ký quỹ cần hoàn trả dựa trên số lượng chưa khớp
-        BigDecimal marginToRelease = order.getRemainingQuantity()
-                .multiply(order.getPrice())
-                .divide(order.getLeverage(), 18, RoundingMode.HALF_UP);
-
-        // 2. Mở khóa Ký quỹ trả về Ví Futures
-        FuturesWallet wallet = futuresWalletRepository.findForUpdate(
-                        user.getId(), order.getMarginCurrencyShortName())
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy ví Futures"));
-
-        wallet.setLockedBalance(wallet.getLockedBalance().subtract(marginToRelease).max(BigDecimal.ZERO));
-        wallet.setBalance(wallet.getBalance().add(marginToRelease));
-        futuresWalletRepository.save(wallet);
-
-        order.setCancelledQuantity(order.getRemainingQuantity());
-        order.setRemainingQuantity(BigDecimal.ZERO);
-        order.setStatus(FuturesOrderStatus.CANCELLED);
-        order.setUpdatedAt(Instant.now());
-
-        FuturesOrder savedOrder = futuresOrderRepository.save(order);
-
-        return futuresOrderMapper.toResponse(savedOrder);
-    }
-
-    @Override
-    public Page<FuturesOrderResponse> getMyFuturesOrders(String symbol, String status, Pageable pageable) {
-        Page<FuturesOrder> orders;
-        String userId = getCurrentUser().getId();
-
-        // Xử lý truy vấn linh hoạt dựa trên các bộ lọc tùy chọn
-        if (symbol != null && !symbol.isEmpty() && status != null && !status.isEmpty()) {
-            orders = futuresOrderRepository.findByUserIdAndInstrument_SymbolAndStatus(
-                    userId, symbol.toUpperCase(), FuturesOrderStatus.valueOf(status.toUpperCase()), pageable);
-        } else if (symbol != null && !symbol.isEmpty()) {
-            orders = futuresOrderRepository.findByUserIdAndInstrument_Symbol(
-                    userId, symbol.toUpperCase(), pageable);
-        } else if (status != null && !status.isEmpty()) {
-            orders = futuresOrderRepository.findByUserIdAndStatus(
-                    userId, FuturesOrderStatus.valueOf(status.toUpperCase()), pageable);
-        } else {
-            orders = futuresOrderRepository.findByUserId(userId, pageable);
-        }
-
-        return orders.map(futuresOrderMapper::toResponse);
-    }
 
     public static User getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
