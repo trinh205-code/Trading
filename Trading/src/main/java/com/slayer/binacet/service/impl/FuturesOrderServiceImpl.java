@@ -111,7 +111,7 @@ public class FuturesOrderServiceImpl implements FuturesOrderService {
 
         return futuresOrderMapper.toResponse(savedOrder);
     }
-    
+
     @Override
     public Page<FuturesOrderResponse> getMyFuturesOrders(String symbol, String status, Pageable pageable) {
         Page<FuturesOrder> orders;

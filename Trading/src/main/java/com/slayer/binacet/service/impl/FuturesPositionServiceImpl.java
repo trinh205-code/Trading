@@ -75,14 +75,7 @@ public class FuturesPositionServiceImpl implements FuturesPositionService {
         OrderSide closeSide = activePos.compareTo(BigDecimal.ZERO) > 0 ? OrderSide.SELL : OrderSide.BUY;
         BigDecimal closeQuantity = activePos.abs();
 
-        CreateFuturesOrderRequest closeRequest = CreateFuturesOrderRequest.builder()
-                .symbol(position.getInstrument().getSymbol())
-                .side(closeSide)
-                .orderType(FuturesOrderType.MARKET)
-                .quantity(closeQuantity)
-                .leverage(position.getLeverage())
-                .reduceOnly(true) // Đánh dấu lệnh đóng
-                .build();
+        CreateFuturesOrderRequest closeRequest = futuresPositionMapper.toCloseOrderRequest(position, closeSide, closeQuantity);
 
         futuresOrderService.createFuturesOrder(closeRequest);
 
@@ -171,15 +164,7 @@ public class FuturesPositionServiceImpl implements FuturesPositionService {
         OrderSide closeSide = activePos.compareTo(BigDecimal.ZERO) > 0 ? OrderSide.SELL : OrderSide.BUY;
 
         //  Tạo lệnh đóng có cờ reduceOnly = true
-        CreateFuturesOrderRequest closeRequest = CreateFuturesOrderRequest.builder()
-                .symbol(position.getInstrument().getSymbol())
-                .side(closeSide)
-                .orderType(request.getOrderType())
-                .price(request.getPrice())
-                .quantity(closeQuantity)
-                .leverage(position.getLeverage())
-                .reduceOnly(true)
-                .build();
+        CreateFuturesOrderRequest closeRequest = futuresPositionMapper.toClosePartialOrderRequest(position, request, closeSide, closeQuantity);
 
         futuresOrderService.createFuturesOrder(closeRequest);
 
@@ -198,19 +183,7 @@ public class FuturesPositionServiceImpl implements FuturesPositionService {
         org.springframework.data.domain.Page<com.slayer.binacet.entity.FuturesTransaction> transactions =
                 futuresTransactionRepository.findUserTransactions(userId, querySymbol, pageable);
 
-        return transactions.map(t -> FuturesPositionHistoryResponse.builder()
-                .id(t.getId())
-                .symbol(t.getSymbol())
-                .stage(t.getStage())
-                .realizedPnl(t.getAmount())
-                .feeAmount(t.getFeeAmount())
-                .leverage(t.getLeverage() != null ? t.getLeverage() : (t.getPosition() != null ? t.getPosition().getLeverage() : null))
-                .avgPrice(t.getEntryPrice() != null ? t.getEntryPrice().abs() : (t.getPosition() != null && t.getPosition().getAvgPrice() != null ? t.getPosition().getAvgPrice().abs() : null))
-                .source(t.getSource())
-                .parentType(t.getParentType())
-                .parentId(t.getParentId())
-                .createdAt(t.getCreatedAt())
-                .build());
+        return transactions.map(futuresPositionMapper::toHistoryResponse);
     }
 
     private FuturesPositionResponse mapAndCalculatePnL(FuturesPosition position) {
