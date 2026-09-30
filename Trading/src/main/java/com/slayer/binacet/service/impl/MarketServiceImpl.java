@@ -63,16 +63,7 @@ public class MarketServiceImpl implements MarketService {
         return activeMarkets.stream()
                 .map(m -> {
                     BigDecimal price = m.getCurrentPrice() != null ? m.getCurrentPrice() : marketPriceCache.getLastPrice(m.getSymbol());
-                    return MarketResponse.builder()
-                            .symbol(m.getSymbol())
-                            .currentPrice(price)
-                            .priceChange(m.getPriceChangePercent() != null ? m.getPriceChangePercent() : BigDecimal.ZERO)
-                            .highPrice(m.getHigh24h())
-                            .lowPrice(m.getLow24h())
-                            .volume24h(m.getVolume24h())
-                            .quoteVolume24h(m.getQuoteVolume24h())
-                            .marketCap(m.getMarketCap())
-                            .build();
+                    return marketMapper.toResponse(m, price);
                 })
                 .toList();
     }
@@ -201,14 +192,7 @@ public class MarketServiceImpl implements MarketService {
         Optional<Market> marketOpt = marketRepository.findById(safeSymbol);
         if (marketOpt.isPresent() && marketOpt.get().getCurrentPrice() != null) {
             Market m = marketOpt.get();
-            return MarketResponse.builder()
-                    .symbol(m.getSymbol())
-                    .currentPrice(m.getCurrentPrice())
-                    .priceChange(m.getPriceChangePercent() != null ? m.getPriceChangePercent() : BigDecimal.ZERO)
-                    .highPrice(m.getHigh24h())
-                    .lowPrice(m.getLow24h())
-                    .volume24h(m.getVolume24h())
-                    .build();
+            return marketMapper.toResponse(m);
         }
 
         // 2. Nếu DB chưa có, gọi Binance trực tiếp làm fallback
