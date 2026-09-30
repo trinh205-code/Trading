@@ -3,11 +3,14 @@ package com.slayer.binacet.controller;
 import com.slayer.binacet.dto.request.ClosePartialPositionRequest;
 import com.slayer.binacet.dto.request.UpdateLeverageRequest;
 import com.slayer.binacet.dto.response.ApiResponse;
+import com.slayer.binacet.dto.response.FuturesPositionHistoryResponse;
 import com.slayer.binacet.dto.response.FuturesPositionResponse;
 import com.slayer.binacet.service.FuturesPositionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -58,13 +61,13 @@ public class FuturesPositionController {
     }
 
     @GetMapping("/history")
-    public ResponseEntity<ApiResponse<org.springframework.data.domain.Page<com.slayer.binacet.dto.response.FuturesPositionHistoryResponse>>> getPositionHistory(
+    public ResponseEntity<ApiResponse<?>> getPositionHistory(
             @RequestParam(required = false) String symbol,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
-        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
-        org.springframework.data.domain.Page<com.slayer.binacet.dto.response.FuturesPositionHistoryResponse> history =
+        Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
+        Page<FuturesPositionHistoryResponse> history =
                 futuresPositionService.getPositionHistory(symbol, pageable);
 
         return ResponseEntity.ok(ApiResponse.success(history, "Lấy lịch sử vị thế thành công"));

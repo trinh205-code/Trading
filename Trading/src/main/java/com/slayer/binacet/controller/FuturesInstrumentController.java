@@ -17,7 +17,7 @@ import java.util.List;
 @RequestMapping("/api/futures/instruments")
 @RequiredArgsConstructor
 public class FuturesInstrumentController {
-    
+
     private final FuturesInstrumentRepository instrumentRepository;
     private final MarketPriceCache marketPriceCache;
     private final FuturesInstrumentResponseMapper futuresInstrumentResponseMapper;

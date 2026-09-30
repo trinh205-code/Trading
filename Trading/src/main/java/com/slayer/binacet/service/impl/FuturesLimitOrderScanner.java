@@ -7,6 +7,7 @@ import com.slayer.binacet.cache.MarketPriceCache;
 import com.slayer.binacet.dto.event.OrderEvent;
 import com.slayer.binacet.entity.FuturesOrder;
 import com.slayer.binacet.event.FuturesOrderProducer;
+import com.slayer.binacet.mapper.OrderEventMapper;
 import com.slayer.binacet.repository.FuturesOrderRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +37,7 @@ public class FuturesLimitOrderScanner {
     private final FuturesOrderRepository orderRepository;
     private final MarketPriceCache marketPriceCache;
     private final FuturesOrderProducer futuresOrderProducer;
+    private final OrderEventMapper orderEventMapper;
 
     @Scheduled(fixedDelay = 2000) // quét mỗi 2 giây — phản ứng nhanh với biến động giá
     public void scanPendingLimitOrders() {
@@ -55,17 +57,7 @@ public class FuturesLimitOrderScanner {
                     log.info("🎯 Lệnh LIMIT {} đủ điều kiện khớp (giá đặt={}, giá thị trường={})",
                             order.getId(), order.getPrice(), markPrice);
 
-                    OrderEvent event = OrderEvent.builder()
-                            .orderId(order.getId())
-                            .symbol(symbol)
-                            .side(order.getSide())
-                            .orderType(order.getOrderType())
-                            .price(order.getPrice())
-                            .quantity(order.getTotalQuantity())
-                            .remainingQuantity(order.getRemainingQuantity())
-                            .timestamp(order.getCreatedAt())
-                            .action("TRIGGER")
-                            .build();
+                    OrderEvent event = orderEventMapper.toFuturesOrderEvent(order, "TRIGGER");
 
                     futuresOrderProducer.sendOrderToQueue(event);
                 }
