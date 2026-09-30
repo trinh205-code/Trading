@@ -4,6 +4,7 @@ import com.slayer.binacet.cache.MarketPriceCache;
 import com.slayer.binacet.dto.response.ApiResponse;
 import com.slayer.binacet.dto.response.FuturesInstrumentResponse;
 import com.slayer.binacet.entity.FuturesInstrument;
+import com.slayer.binacet.mapper.FuturesInstrumentResponseMapper;
 import com.slayer.binacet.repository.FuturesInstrumentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +20,7 @@ public class FuturesInstrumentController {
 
     private final FuturesInstrumentRepository instrumentRepository;
     private final MarketPriceCache marketPriceCache;
+    private final FuturesInstrumentResponseMapper instrumentResponseMapper;
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<FuturesInstrumentResponse>>> getAllActiveInstruments() {
@@ -64,24 +66,6 @@ public class FuturesInstrumentController {
             realtimeLastPrice = instrument.getLastPrice();
         }
 
-        return FuturesInstrumentResponse.builder()
-                .symbol(sym)
-                .baseAsset(instrument.getBaseAsset())
-                .quoteAsset(instrument.getQuoteAsset())
-                .marginCurrencyShortName(instrument.getMarginCurrencyShortName())
-                .kind(instrument.getKind())
-                .priceIncrement(instrument.getPriceIncrement())
-                .quantityIncrement(instrument.getQuantityIncrement())
-                .minPrice(instrument.getMinPrice())
-                .maxPrice(instrument.getMaxPrice())
-                .minNotional(instrument.getMinNotional())
-                .maxLeverage(instrument.getMaxLeverageLong())
-                .makerFee(instrument.getMakerFee())
-                .takerFee(instrument.getTakerFee())
-                .fundingFrequency(instrument.getFundingFrequency())
-                .lastPrice(realtimeLastPrice)
-                .markPrice(realtimeMarkPrice)
-                .status(instrument.getStatus())
-                .build();
+        return instrumentResponseMapper.toResponse(instrument, realtimeLastPrice, realtimeMarkPrice);
     }
 }
