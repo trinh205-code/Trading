@@ -34,32 +34,15 @@ public class TradeServiceImpl implements TradeService {
     @Override
     @Transactional
     public void recordInternalMatch(Order buyOrder, Order sellOrder, BigDecimal matchPrice, BigDecimal matchQty) {
-        Instant now = Instant.now();
-        BigDecimal totalQuote = matchPrice.multiply(matchQty);
+        BigDecimal fee = matchQty.multiply(FEE_RATE);
 
-        Trade buyTrade = Trade.builder()
-                .order(buyOrder)
-                .symbol(buyOrder.getMarket().getSymbol())
-                .side(buyOrder.getSide())
-                .price(matchPrice)
-                .feeAmount(matchQty.multiply(FEE_RATE))
-                .quantity(matchQty)
-                .executionVenue("INTERNAl")
-                .timestamp(now)
-                .build();
+        Trade buyTrade = tradeMapper.toEntity(buyOrder, matchPrice, matchQty);
+        buyTrade.setFeeAmount(fee);
+        buyTrade.setExecutionVenue("INTERNAL");
 
-
-        Trade sellTrade = Trade.builder()
-                .order(sellOrder)
-                .symbol(sellOrder.getMarket().getSymbol())
-                .side(sellOrder.getSide())
-                .price(matchPrice)
-                .feeAmount(matchQty.multiply(FEE_RATE))
-                .quantity(matchQty)
-                .executionVenue("INTERNAl")
-                .timestamp(now)
-                .build();
-
+        Trade sellTrade = tradeMapper.toEntity(sellOrder, matchPrice, matchQty);
+        sellTrade.setFeeAmount(fee);
+        sellTrade.setExecutionVenue("INTERNAL");
 
         tradeRepository.save(buyTrade);
         tradeRepository.save(sellTrade);
@@ -72,16 +55,9 @@ public class TradeServiceImpl implements TradeService {
                 ? matchQty.multiply(FEE_RATE)
                 : matchPrice.multiply(matchQty).multiply(FEE_RATE);
 
-        Trade externalTrade = Trade.builder()
-                .order(order)
-                .symbol(order.getMarket().getSymbol())
-                .side(order.getSide())
-                .price(matchPrice)
-                .feeAmount(fee)
-                .quantity(matchQty)
-                .executionVenue(venue)
-                .timestamp(Instant.now())
-                .build();
+        Trade externalTrade = tradeMapper.toEntity(order, matchPrice, matchQty);
+        externalTrade.setFeeAmount(fee);
+        externalTrade.setExecutionVenue(venue);
 
         tradeRepository.save(externalTrade);
     }
