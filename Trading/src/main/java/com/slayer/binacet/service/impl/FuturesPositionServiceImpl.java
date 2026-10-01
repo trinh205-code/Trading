@@ -102,35 +102,38 @@ public class FuturesPositionServiceImpl implements FuturesPositionService {
         FuturesWallet wallet = futuresWalletRepository.findForUpdate(userId, position.getMarginCurrencyShortName())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy ví Futures"));
 
-        if (position.getActivePos() != null && position.getActivePos().compareTo(BigDecimal.ZERO) != 0) {
-
-            BigDecimal notionalValue = position.getActivePos().abs().multiply(position.getAvgPrice());
-            BigDecimal newMarginRequired = notionalValue.divide(leverage, 18, java.math.RoundingMode.HALF_UP);
-
-            BigDecimal currentLockedMargin = position.getLockedUserMargin() != null ? position.getLockedUserMargin() : BigDecimal.ZERO;
-            BigDecimal marginDifference = newMarginRequired.subtract(currentLockedMargin);
-
-            if (marginDifference.compareTo(BigDecimal.ZERO) > 0) {
-
-                if (wallet.getAvailableMargin().compareTo(marginDifference) < 0) {
-                    throw new RuntimeException("Số dư khả dụng không đủ để hạ đòn bẩy. Cần thêm: " + marginDifference.toPlainString());
-                }
-                wallet.setLockedBalance(wallet.getLockedBalance().add(marginDifference));
-                wallet.setBalance(wallet.getBalance().subtract(marginDifference));
-
-            } else if (marginDifference.compareTo(BigDecimal.ZERO) < 0) {
-                BigDecimal refund = marginDifference.abs();
-                BigDecimal newLocked = wallet.getLockedBalance().subtract(refund);
-                wallet.setLockedBalance(newLocked.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : newLocked);
-                wallet.setBalance(wallet.getBalance().add(refund));
-            }
-
-            position.setLockedUserMargin(newMarginRequired);
-            futuresWalletRepository.save(wallet);
-        }
+        adjustActivePositionMargin(position, wallet, leverage);
 
         position.setLeverage(leverage);
         futuresPositionRepository.save(position);
+    }
+
+    private void adjustActivePositionMargin(FuturesPosition position, FuturesWallet wallet, BigDecimal leverage) {
+        if (position.getActivePos() == null || position.getActivePos().compareTo(BigDecimal.ZERO) == 0) {
+            return;
+        }
+
+        BigDecimal notionalValue = position.getActivePos().abs().multiply(position.getAvgPrice());
+        BigDecimal newMarginRequired = notionalValue.divide(leverage, 18, java.math.RoundingMode.HALF_UP);
+
+        BigDecimal currentLockedMargin = position.getLockedUserMargin() != null ? position.getLockedUserMargin() : BigDecimal.ZERO;
+        BigDecimal marginDifference = newMarginRequired.subtract(currentLockedMargin);
+
+        if (marginDifference.compareTo(BigDecimal.ZERO) > 0) {
+            if (wallet.getAvailableMargin().compareTo(marginDifference) < 0) {
+                throw new RuntimeException("Số dư khả dụng không đủ để hạ đòn bẩy. Cần thêm: " + marginDifference.toPlainString());
+            }
+            wallet.setLockedBalance(wallet.getLockedBalance().add(marginDifference));
+            wallet.setBalance(wallet.getBalance().subtract(marginDifference));
+        } else if (marginDifference.compareTo(BigDecimal.ZERO) < 0) {
+            BigDecimal refund = marginDifference.abs();
+            BigDecimal newLocked = wallet.getLockedBalance().subtract(refund);
+            wallet.setLockedBalance(newLocked.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : newLocked);
+            wallet.setBalance(wallet.getBalance().add(refund));
+        }
+
+        position.setLockedUserMargin(newMarginRequired);
+        futuresWalletRepository.save(wallet);
     }
 
     @Override
