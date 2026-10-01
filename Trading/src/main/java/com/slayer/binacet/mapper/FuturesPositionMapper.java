@@ -5,6 +5,7 @@ import com.slayer.binacet.dto.request.ClosePartialPositionRequest;
 import com.slayer.binacet.dto.request.CreateFuturesOrderRequest;
 import com.slayer.binacet.dto.response.FuturesPositionHistoryResponse;
 import com.slayer.binacet.dto.response.FuturesPositionResponse;
+import com.slayer.binacet.entity.FuturesOrder;
 import com.slayer.binacet.entity.FuturesPosition;
 import com.slayer.binacet.entity.FuturesTransaction;
 import org.mapstruct.Mapper;
@@ -14,6 +15,24 @@ import java.math.BigDecimal;
 
 @Mapper(componentModel = "spring")
 public interface FuturesPositionMapper {
+
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "user", source = "order.user")
+    @Mapping(target = "instrument", source = "order.instrument")
+    @Mapping(target = "marginCurrencyShortName", source = "order.marginCurrencyShortName")
+    @Mapping(target = "leverage", expression = "java(order.getLeverage() != null ? order.getLeverage() : java.math.BigDecimal.TEN)")
+    @Mapping(target = "activePos", expression = "java(java.math.BigDecimal.ZERO)")
+    @Mapping(target = "avgPrice", expression = "java(java.math.BigDecimal.ZERO)")
+    @Mapping(target = "lockedUserMargin", expression = "java(java.math.BigDecimal.ZERO)")
+    @Mapping(target = "transactions", ignore = true)
+    @Mapping(target = "liquidationPrice", ignore = true)
+    @Mapping(target = "lockedMargin", ignore = true)
+    @Mapping(target = "lockedOrderMargin", ignore = true)
+    @Mapping(target = "markPrice", ignore = true)
+    @Mapping(target = "maintenanceMargin", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "updatedAt", ignore = true)
+    FuturesPosition toEntity(FuturesOrder order);
 
     @Mapping(source = "instrument.symbol", target = "symbol")
     @Mapping(target = "unrealizedPnl", ignore = true)

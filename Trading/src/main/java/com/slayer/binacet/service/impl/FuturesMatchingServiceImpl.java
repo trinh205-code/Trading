@@ -7,6 +7,7 @@ import com.slayer.binacet.cache.MarketPriceCache;
 import com.slayer.binacet.dto.event.OrderEvent;
 import com.slayer.binacet.dto.response.FillResult;
 import com.slayer.binacet.entity.*;
+import com.slayer.binacet.mapper.FuturesPositionMapper;
 import com.slayer.binacet.repository.*;
 import com.slayer.binacet.service.FuturesMatchingService;
 import com.slayer.binacet.service.FuturesPnLService;
@@ -33,7 +34,7 @@ FuturesMatchingServiceImpl  {
     private final FuturesTransactionRepository transactionRepository;
     private final FuturesWalletServiceImpl futuresWalletService;
     private final MarketPriceCache marketPriceCache;
-
+    private final FuturesPositionMapper futuresPositionMapper;
 
 
 
@@ -69,15 +70,7 @@ FuturesMatchingServiceImpl  {
         String currency = order.getMarginCurrencyShortName();
 
         FuturesPosition position = positionRepository.findForUpdate(userId, symbol)
-                .orElseGet(() -> positionRepository.save(FuturesPosition.builder()
-                        .user(order.getUser())
-                        .marginCurrencyShortName(currency)
-                        .leverage(order.getLeverage() != null ? order.getLeverage() : BigDecimal.TEN)
-                        .instrument(order.getInstrument())
-                        .activePos(BigDecimal.ZERO)
-                        .avgPrice(BigDecimal.ZERO)
-                        .lockedUserMargin(BigDecimal.ZERO)
-                        .build()));
+                .orElseGet(() -> positionRepository.save(futuresPositionMapper.toEntity(order)));
 
         FillResult fillResult = applyFillToPosition(position, order.getSide(), fillQty, fillPrice, order.getLeverage());
         settleFill(userId, currency, position, symbol, fillResult, "FuturesOrder", orderId);
@@ -281,15 +274,7 @@ FuturesMatchingServiceImpl  {
         BigDecimal safeFillPrice = fillPrice.abs();
 
         FuturesPosition position = positionRepository.findForUpdate(userId, symbol)
-                .orElseGet(() -> positionRepository.save(FuturesPosition.builder()
-                        .user(order.getUser())
-                        .instrument(order.getInstrument())
-                        .activePos(BigDecimal.ZERO)
-                        .avgPrice(BigDecimal.ZERO)
-                        .lockedUserMargin(BigDecimal.ZERO)
-                        .leverage(order.getLeverage())
-                        .marginCurrencyShortName(currency)
-                        .build()));
+                .orElseGet(() -> positionRepository.save(futuresPositionMapper.toEntity(order)));
 
         FillResult fillResult = applyFillToPosition(position, order.getSide(), actualFill, safeFillPrice, order.getLeverage());
         settleFill(userId, currency, position, symbol, fillResult, "FuturesOrder", order.getId());
