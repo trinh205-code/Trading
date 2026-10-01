@@ -26,8 +26,8 @@ public interface OrderMapper {
     @Mapping(target = "user", source = "user")
     @Mapping(target = "market", source = "market")
     @Mapping(target = "side", source = "request.side")
-    @Mapping(target = "orderType", source = "orderType")
-    @Mapping(target = "status", expression = "java(com.slayer.binacet.Enums.OrderStatus.NEW)")
+    @Mapping(target = "orderType", source = "request.orderType")
+    @Mapping(target = "status", constant = "NEW")
     @Mapping(target = "pricePerUnit", source = "orderPrice")
     @Mapping(target = "totalQuantity", source = "request.quantity")
     @Mapping(target = "remainingQuantity", source = "request.quantity")
@@ -37,5 +37,5 @@ public interface OrderMapper {
     @Mapping(target = "trades", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
-    Order toEntity(CreateOrderRequest request, User user, Market market, String clientOrderId, OrderType orderType, BigDecimal orderPrice, BigDecimal amountToLock);
+    Order toEntity(CreateOrderRequest request, User user, Market market, String clientOrderId, BigDecimal orderPrice, BigDecimal amountToLock);
 }

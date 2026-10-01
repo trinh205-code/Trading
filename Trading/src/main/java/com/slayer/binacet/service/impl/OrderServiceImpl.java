@@ -106,7 +106,7 @@ public class OrderServiceImpl implements OrderService {
         }
 
         String clientOrderId = request.getClientOrderId() != null ? request.getClientOrderId() : UUID.randomUUID().toString();
-        Order order = orderMapper.toEntity(request, currentUser, market, clientOrderId, type, orderPrice, amountToLock);
+        Order order = orderMapper.toEntity(request, currentUser, market, clientOrderId, orderPrice, amountToLock);
 
         Order savedOrder = orderRepository.save(order);
         log.info("User {} đặt lệnh {} {} thành công. OrderId: {}",
