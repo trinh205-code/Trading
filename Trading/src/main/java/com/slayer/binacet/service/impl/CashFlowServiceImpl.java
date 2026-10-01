@@ -5,6 +5,7 @@ import com.slayer.binacet.dto.response.CashFlowItemResponse;
 import com.slayer.binacet.dto.response.CashFlowResponse;
 import com.slayer.binacet.dto.response.CashFlowSummaryResponse;
 import com.slayer.binacet.entity.*;
+import com.slayer.binacet.mapper.CashFlowMapper;
 import com.slayer.binacet.repository.*;
 import com.slayer.binacet.service.CashFlowService;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class CashFlowServiceImpl implements CashFlowService {
     private final TradeRepository tradeRepository;
     private final FuturesTradeRepository futuresTradeRepository;
     private final FuturesTransactionRepository futuresTransactionRepository;
+    private final CashFlowMapper cashFlowMapper;
 
     public static User getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -211,19 +213,10 @@ public class CashFlowServiceImpl implements CashFlowService {
                 .subtract(totalTradingFee)
                 .add(totalRealizedPnl);
 
-        CashFlowSummaryResponse summary = CashFlowSummaryResponse.builder()
-                .totalDeposit(totalDeposit)
-                .totalWithdraw(totalWithdraw)
-                .totalTradingFee(totalTradingFee)
-                .totalRealizedPnl(totalRealizedPnl)
-                .totalTransferIn(totalTransferIn)
-                .totalTransferOut(totalTransferOut)
-                .netCashFlow(netCashFlow)
-                .build();
+        CashFlowSummaryResponse summary = cashFlowMapper.toSummaryResponse(
+                totalDeposit, totalWithdraw, totalTradingFee, totalRealizedPnl,
+                totalTransferIn, totalTransferOut, netCashFlow);
 
-        return CashFlowResponse.builder()
-                .summary(summary)
-                .items(filteredItems)
-                .build();
+        return cashFlowMapper.toResponse(summary, filteredItems);
     }
 }
