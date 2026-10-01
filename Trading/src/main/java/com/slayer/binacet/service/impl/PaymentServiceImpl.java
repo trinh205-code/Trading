@@ -7,6 +7,8 @@ import com.slayer.binacet.dto.response.PaymentResponse;
 import com.slayer.binacet.entity.Payment;
 import com.slayer.binacet.entity.User;
 import com.slayer.binacet.entity.WalletBalance;
+import com.slayer.binacet.mapper.PaymentMapper;
+import com.slayer.binacet.mapper.WalletMapper;
 import com.slayer.binacet.repository.PaymentRepository;
 import com.slayer.binacet.repository.WalletBalanceRepository;
 import com.slayer.binacet.service.PaymentService;
@@ -37,6 +39,8 @@ public class PaymentServiceImpl implements PaymentService {
     private final WalletBalanceRepository walletBalanceRepository;
     private final VnPayService vnPayService;
     private final com.slayer.binacet.service.ExchangeRateService exchangeRateService;
+    private final PaymentMapper paymentMapper;
+    private final WalletMapper walletMapper;
 
     private User getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -51,17 +55,14 @@ public class PaymentServiceImpl implements PaymentService {
     public PaymentResponse createVnPayPayment(CreatePaymentRequest request, HttpServletRequest servletRequest) {
         User user = getCurrentUser();
 
-        BigDecimal amountVnd = request.getAmountVnd();
-        BigDecimal usdtAmount = request.getUsdtAmount();
         BigDecimal exchangeRate = exchangeRateService.getUsdtToVndRate();
 
-        // Tính toán số tiền nếu chỉ truyền một trong hai
-        if (amountVnd != null && amountVnd.compareTo(BigDecimal.ZERO) > 0) {
-            if (usdtAmount == null || usdtAmount.compareTo(BigDecimal.ZERO) <= 0) {
-                usdtAmount = amountVnd.divide(exchangeRate, 4, RoundingMode.HALF_UP);
+        if (request.getAmountVnd() != null && request.getAmountVnd().compareTo(BigDecimal.ZERO) > 0) {
+            if (request.getUsdtAmount() == null || request.getUsdtAmount().compareTo(BigDecimal.ZERO) <= 0) {
+                request.setUsdtAmount(request.getAmountVnd().divide(exchangeRate, 4, RoundingMode.HALF_UP));
             }
-        } else if (usdtAmount != null && usdtAmount.compareTo(BigDecimal.ZERO) > 0) {
-            amountVnd = usdtAmount.multiply(exchangeRate).setScale(0, RoundingMode.HALF_UP);
+        } else if (request.getUsdtAmount() != null && request.getUsdtAmount().compareTo(BigDecimal.ZERO) > 0) {
+            request.setAmountVnd(request.getUsdtAmount().multiply(exchangeRate).setScale(0, RoundingMode.HALF_UP));
         } else {
             throw new RuntimeException("Vui lòng nhập số tiền VNĐ hoặc số lượng USDT muốn mua");
         }
@@ -69,26 +70,16 @@ public class PaymentServiceImpl implements PaymentService {
         // Tạo mã giao dịch duy nhất
         String transactionId = "PAY_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
 
-        Payment payment = Payment.builder()
-                .user(user)
-                .paymentGateway(PaymentGateway.VNPAY)
-                .paymentStatus(PaymentStatus.PENDING)
-                .amountVnd(amountVnd)
-                .usdtAmount(usdtAmount)
-                .exchangeRate(exchangeRate)
-                .transactionId(transactionId)
-                .bankCode(request.getBankCode())
-                .orderInfo("Mua " + usdtAmount.stripTrailingZeros().toPlainString() + " USDT ma GD " + transactionId)
-                .build();
+        Payment payment = paymentMapper.toEntity(request, user, exchangeRate, transactionId);
 
         Payment savedPayment = paymentRepository.save(payment);
 
         String paymentUrl = vnPayService.createPaymentUrl(savedPayment, servletRequest);
 
         log.info("Tạo yêu cầu thanh toán VNPay thành công: txnId={}, amountVnd={}, usdtAmount={}, paymentUrl={}",
-                transactionId, amountVnd, usdtAmount, paymentUrl);
+                transactionId, request.getAmountVnd(), request.getUsdtAmount(), paymentUrl);
 
-        return mapToPaymentResponse(savedPayment, paymentUrl);
+        return paymentMapper.toResponse(savedPayment, paymentUrl);
     }
 
     @Override
@@ -124,14 +115,7 @@ public class PaymentServiceImpl implements PaymentService {
             // Nạp USDT vào ví của User
             User user = payment.getUser();
             WalletBalance wallet = walletBalanceRepository.findByUserIdAndCurrency(user.getId(), "USDT")
-                    .orElseGet(() -> {
-                        WalletBalance newWallet = new WalletBalance();
-                        newWallet.setUser(user);
-                        newWallet.setCurrency("USDT");
-                        newWallet.setBalance(BigDecimal.ZERO);
-                        newWallet.setLockedBalance(BigDecimal.ZERO);
-                        return newWallet;
-                    });
+                    .orElseGet(() -> walletMapper.toEntity(user, "USDT"));
 
             wallet.setBalance(wallet.getBalance().add(payment.getUsdtAmount()));
             walletBalanceRepository.save(wallet);
@@ -172,14 +156,13 @@ public class PaymentServiceImpl implements PaymentService {
             paymentRepository.saveAll(payments);
         }
 
-        return payments.stream()
-                .map(p -> mapToPaymentResponse(p, null))
-                .collect(Collectors.toList());
+        return paymentMapper.toResponseList(payments);
     }
 
     /**
      * Tự động quét và cập nhật các đơn hàng VNPay còn PENDING quá 15 phút thành EXPIRED
      * Chạy định kỳ mỗi 120 giây
+     * 
      */
     @Scheduled(fixedDelay = 120000)
     @Transactional
@@ -196,21 +179,5 @@ public class PaymentServiceImpl implements PaymentService {
             paymentRepository.saveAll(pendingList);
             log.info("CronJob: Hoàn tất cập nhật {} giao dịch VNPay quá hạn 15 phút sang EXPIRED", pendingList.size());
         }
-    }
-
-    private PaymentResponse mapToPaymentResponse(Payment payment, String paymentUrl) {
-        return PaymentResponse.builder()
-                .id(payment.getId())
-                .transactionId(payment.getTransactionId())
-                .amountVnd(payment.getAmountVnd())
-                .usdtAmount(payment.getUsdtAmount())
-                .exchangeRate(payment.getExchangeRate())
-                .paymentStatus(payment.getPaymentStatus())
-                .paymentGateway(payment.getPaymentGateway())
-                .paymentUrl(paymentUrl)
-                .bankCode(payment.getBankCode())
-                .createdAt(payment.getCreatedAt())
-                .completedAt(payment.getCompletedAt())
-                .build();
     }
 }
