@@ -32,8 +32,11 @@ jobs:
       - name: Make mvnw executable
         run: chmod +x ./mvnw
 
-      - name: Compile and Package (Skip Tests)
-        run: ./mvnw clean package -DskipTests
+      - name: Run Unit Tests
+        run: ./mvnw clean test
+
+      - name: Package JAR
+        run: ./mvnw package -DskipTests
 
       - name: Upload Backend Build Artifact
         uses: actions/upload-artifact@v4
