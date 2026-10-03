@@ -10,17 +10,20 @@ import com.slayer.binacet.entity.BlacklistedToken;
 import com.slayer.binacet.Enums.Role;
 import com.slayer.binacet.entity.RefreshToken;
 import com.slayer.binacet.entity.User;
+import com.slayer.binacet.entity.WalletBalance;
 import com.slayer.binacet.exception.TokenRefreshException;
 import com.slayer.binacet.mapper.UserMapper;
 import com.slayer.binacet.repository.BlacklistedRepository;
 import com.slayer.binacet.repository.RefreshTokenRepository;
 import com.slayer.binacet.repository.UserRepository;
+import com.slayer.binacet.repository.WalletBalanceRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Service
@@ -32,6 +35,7 @@ public class AuthService {
     private final BlacklistedRepository blacklistedRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final UserMapper userMapper;
+    private final WalletBalanceRepository walletBalanceRepository;
 
 
     public UserResponse register(RegisterRequest request) {
@@ -42,18 +46,18 @@ public class AuthService {
                 .fullName(request.getFullName())
                 .email(request.getEmail())
                 .role(Role.USER)
-
                 .password(passwordEncoder.encode(request.getPassword()))
                 .build();
-        //        WalletBalance walletBalance = WalletBalance.builder()
-//                .user(newUser)
-//                .currency("USDT")
-//                .balance(BigDecimal.ZERO)
-//                .lockedBalance(BigDecimal.ZERO)
-//                .build();
-//        walletBalanceRepository.save(walletBalance);
-//
         User saveUser = userRepository.save(user);
+
+        WalletBalance walletBalance = WalletBalance.builder()
+                .user(user)
+                .currency("USDT")
+                .balance(BigDecimal.ZERO)
+                .lockedBalance(BigDecimal.ZERO)
+                .build();
+        walletBalanceRepository.save(walletBalance);
+
         return userMapper.toResponse(saveUser);
 
     }
