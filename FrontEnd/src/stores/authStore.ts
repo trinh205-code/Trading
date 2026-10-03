@@ -13,6 +13,7 @@ interface AuthState {
 
   login: (credentials: LoginRequest) => Promise<void>;
   register: (data: RegisterRequest) => Promise<void>;
+  setTokens: (accessToken: string, refreshToken: string) => Promise<void>;
   logout: () => Promise<void>;
   fetchProfile: () => Promise<void>;
   initializeAuth: () => Promise<void>;
@@ -24,6 +25,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   refreshToken: localStorage.getItem('refreshToken'),
   isAuthenticated: !!localStorage.getItem('accessToken'),
   isLoading: false,
+
+  setTokens: async (accessToken, refreshToken) => {
+    localStorage.setItem('accessToken', accessToken);
+    localStorage.setItem('refreshToken', refreshToken);
+    set({
+      accessToken,
+      refreshToken,
+      isAuthenticated: true,
+    });
+    await get().fetchProfile();
+  },
 
   login: async (credentials) => {
     set({ isLoading: true });

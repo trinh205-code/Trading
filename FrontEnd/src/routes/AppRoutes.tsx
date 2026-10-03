@@ -11,6 +11,7 @@ import { WalletPage } from '../pages/Wallet/WalletPage';
 import { ProfilePage } from '../pages/Profile/ProfilePage';
 import { LoginPage } from '../pages/Login/LoginPage';
 import { RegisterPage } from '../pages/Register/RegisterPage';
+import { OAuth2RedirectHandler } from '../pages/Auth/OAuth2RedirectHandler';
 import { BuyCryptoPage } from '../pages/BuyCrypto/BuyCryptoPage';
 import { BuyCryptoHistoryPage } from '../pages/BuyCrypto/BuyCryptoHistoryPage';
 
@@ -39,6 +40,7 @@ export const AppRoutes: React.FC = () => {
         {/* Auth Routes */}
         <Route path="login" element={<LoginPage />} />
         <Route path="register" element={<RegisterPage />} />
+        <Route path="oauth2/redirect" element={<OAuth2RedirectHandler />} />
 
         {/* Protected Routes */}
         <Route element={<ProtectedRoute />}>
