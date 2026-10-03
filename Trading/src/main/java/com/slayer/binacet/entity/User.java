@@ -1,6 +1,7 @@
 package com.slayer.binacet.entity;
 
 
+import com.slayer.binacet.Enums.AuthProvider;
 import com.slayer.binacet.Enums.Role;
 import jakarta.persistence.*;
 import lombok.*;
@@ -31,6 +32,11 @@ public class User implements UserDetails {
     private String email;
     private String phoneNumber;
     private String password;
+
+    @Enumerated(EnumType.STRING)
+    private AuthProvider authProvider;
+
+    private String providerId;
 
     @Enumerated(EnumType.STRING)
     private Role role;
