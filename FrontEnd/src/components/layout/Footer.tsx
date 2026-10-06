@@ -10,14 +10,16 @@ export const Footer: React.FC = () => {
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between pb-10 border-b border-[#1c1c1c] gap-4">
           <div className="space-y-1.5">
             {/* TVN Iconic Geometric Logo */}
-            <div className="flex items-center space-x-1 tracking-tighter text-xl font-black text-white">
-              <span className="inline-block px-1.5 py-0.5 bg-[#00c076] text-black font-extrabold rounded-xs leading-none text-sm mr-0.5">
-                TV
+            <div className="flex items-center space-x-1.5 tracking-tight text-xl font-black text-white">
+              <span className="text-white font-black">T</span>
+              <span className="inline-flex items-center px-2 py-0.5 bg-[#da251d] text-white font-extrabold rounded-xs leading-none text-sm space-x-0.5 shadow-sm shadow-red-900/30">
+                <span>V</span>
+                <span className="text-[#ffde00] text-xs leading-none select-none">★</span>
+                <span>N</span>
               </span>
-              <span className="tracking-widest text-white">N</span>
             </div>
             <div className="text-[11px] text-[#555555]">
-              ©2017 - 2026 TVN.COM
+              ©2026 TVN.COM
             </div>
           </div>
 

@@ -281,4 +281,4 @@ npm run dev
 
 Dự án được xây dựng và phát triển phục vụ mục đích học tập, nghiên cứu và triển khai nền tảng giao dịch tài sản số thế hệ mới.
 
-© 2017 - 2026 **TVN.COM**. All Rights Reserved.
+© 2026 **TVN.COM**. All Rights Reserved.

@@ -110,12 +110,14 @@ export const Header: React.FC = () => {
         {/* Left: TVN Logo & Nav Items */}
         <div className="flex items-center space-x-6">
           {/* TVN Iconic Geometric Logo */}
-          <Link to="/" className="flex items-center space-x-2 group">
-            <div className="flex items-center space-x-0.5 tracking-tighter text-lg font-black text-white">
-              <span className="inline-block px-1.5 bg-[#00c076] text-black font-extrabold rounded-xs leading-none py-0.5 mr-0.5 text-xs">
-                TV
+          <Link to="/" className="flex items-center space-x-1.5 group">
+            <div className="flex items-center space-x-1 tracking-tight text-lg font-black text-white">
+              <span className="text-white font-black">T</span>
+              <span className="inline-flex items-center px-1.5 py-0.5 bg-[#da251d] text-white font-extrabold rounded-xs leading-none text-xs space-x-0.5 shadow-sm shadow-red-900/30">
+                <span>V</span>
+                <span className="text-[#ffde00] text-[10px] leading-none select-none">★</span>
+                <span>N</span>
               </span>
-              <span className="tracking-widest">N</span>
             </div>
           </Link>
  
