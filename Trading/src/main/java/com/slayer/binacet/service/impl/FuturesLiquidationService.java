@@ -65,7 +65,7 @@ public class FuturesLiquidationService {
         BigDecimal unrealizedPnl = pnlService.calculateUnrealizedPnl(position, markPrice);
         BigDecimal margin = position.getLockedUserMargin() != null ? position.getLockedUserMargin() : BigDecimal.ZERO;
         if (!hitLiquidation && margin.compareTo(BigDecimal.ZERO) > 0 && unrealizedPnl.compareTo(margin.negate()) <= 0) {
-            log.warn("⚠️ Vị thế {} symbol {} đang lỗ {} vượt quá toàn bộ ký quỹ {}. Kích hoạt thanh lý bảo vệ.",
+            log.warn("Vị thế {} symbol {} đang lỗ {} vượt quá toàn bộ ký quỹ {}. Kích hoạt thanh lý bảo vệ.",
                     position.getId(), symbol, unrealizedPnl, margin);
             hitLiquidation = true;
         }
@@ -87,12 +87,10 @@ public class FuturesLiquidationService {
                 ? position.getLockedUserMargin()
                 : BigDecimal.ZERO;
 
-        // BẢO VỆ VÍ (ISOLATED MARGIN): Trong ký quỹ cô lập, mức lỗ thanh lý tối đa
-        // mà người dùng phải chịu không bao giờ được vượt quá số tiền ký quỹ đã khóa (lockedUserMargin).
-        // Mọi khoản thâm hụt (deficit) vượt quá mức này sẽ do Quỹ bảo hiểm (Insurance Fund) chi trả.
+        //người dùng phải chịu không bao giờ được vượt quá số tiền ký quỹ đã khóa
         BigDecimal maxLoss = marginToRelease.negate();
         if (realizedPnl.compareTo(maxLoss) < 0) {
-            log.warn("⚠️ Khoản lỗ thanh lý {} vượt quá ký quỹ {} của vị thế {}. Giới hạn lại ở mức ký quỹ tối đa.",
+            log.warn("Khoản lỗ thanh lý {} vượt quá ký quỹ {} của vị thế {}. Giới hạn lại ở mức ký quỹ tối đa.",
                     realizedPnl, marginToRelease, position.getId());
             realizedPnl = maxLoss;
         }
@@ -115,14 +113,12 @@ public class FuturesLiquidationService {
 
         cancelOrphanedOrders(userId, symbol, currency);
 
-        log.warn("💥 THANH LÝ vị thế {} (user={}, symbol={}) tại giá {}. PnL thực nhận: {}",
+        log.warn("THANH LÝ vị thế {} (user={}, symbol={}) tại giá {}. PnL thực nhận: {}",
                 position.getId(), userId, symbol, liquidationExecutionPrice, realizedPnl);
     }
 
     /**
      * Hủy mọi lệnh (LIMIT thường lẫn TP/SL) đang treo của user cho symbol vừa bị thanh lý,
-     * và hoàn trả margin đã khóa riêng cho từng lệnh đó — nếu bỏ qua bước hoàn margin,
-     * tiền sẽ kẹt vĩnh viễn trong lockedBalance dù lệnh đã bị hủy (tái diễn bug đã sửa trước đây).
      */
     private void cancelOrphanedOrders(String userId, String symbol, String currency) {
         List<FuturesOrder> orphanedOrders = orderRepository
@@ -131,10 +127,6 @@ public class FuturesLiquidationService {
         if (orphanedOrders.isEmpty()) return;
 
         for (FuturesOrder order : orphanedOrders) {
-            // Lệnh TP/SL (stage=tpsl_exit) thường không tự khóa margin riêng — chỉ theo dõi giá
-            // để đóng vị thế gốc. Chỉ lệnh LIMIT thường (stage=default) mới thực sự có margin
-            // bị khóa lúc tạo lệnh, cần hoàn trả. Kiểm tra trước khi gọi releaseMargin để tránh
-            // hoàn nhầm 1 khoản tiền chưa từng bị khóa.
             if (!"tpsl_exit".equals(order.getStage()) && order.getPrice() != null && order.getLeverage() != null) {
                 BigDecimal marginToRelease = order.getRemainingQuantity()
                         .multiply(order.getPrice())
@@ -151,7 +143,7 @@ public class FuturesLiquidationService {
             order.setUpdatedAt(Instant.now());
             orderRepository.save(order);
 
-            log.info("🗑️ Hủy lệnh {} (stage={}) do vị thế {} đã bị thanh lý", order.getId(), order.getStage(), symbol);
+            log.info(" Hủy lệnh {} (stage={}) do vị thế {} đã bị thanh lý", order.getId(), order.getStage(), symbol);
         }
 
         log.warn("Đã hủy {} lệnh treo của user {} cho symbol {} sau khi thanh lý", orphanedOrders.size(), userId, symbol);

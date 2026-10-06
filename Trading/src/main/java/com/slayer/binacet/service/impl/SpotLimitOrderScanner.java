@@ -50,7 +50,7 @@ public class SpotLimitOrderScanner {
                         || (order.getSide() == OrderSide.SELL && order.getPricePerUnit().compareTo(currentPrice) <= 0);
 
                 if (shouldTrigger) {
-                    log.info("🎯 Lệnh Spot LIMIT {} đủ điều kiện khớp (Side={}, Giá đặt={}, Giá thị trường={})",
+                    log.info("Lệnh Spot LIMIT {} đủ điều kiện khớp (Side={}, Giá đặt={}, Giá thị trường={})",
                             order.getId(), order.getSide(), order.getPricePerUnit(), currentPrice);
 
                     liveMatchingEngine.matchSingleOrder(order.getId());

@@ -10,13 +10,7 @@ import org.springframework.context.annotation.Configuration;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Requires the Caffeine dependency in pom.xml:
- *
- * <dependency>
- *     <groupId>com.github.ben-manes.caffeine</groupId>
- *     <artifactId>caffeine</artifactId>
- * </dependency>
- *
+
  * Cache name must match the value used in @Cacheable("marketTickers") on MarketServiceImpl.
  * TTL is intentionally short (5s) — this is live market data, not something that should be
  * cached for minutes. Its only job is to absorb bursts of concurrent requests hitting the

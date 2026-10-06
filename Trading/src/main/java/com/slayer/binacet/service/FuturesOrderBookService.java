@@ -17,7 +17,6 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class FuturesOrderBookService {
 
-    // Map chứa Order Book cho từng cặp Coin (Ví dụ: BTCUSDT -> OrderBook)
     private final Map<String, OrderBook> orderBooks = new ConcurrentHashMap<>();
 
     private final FuturesMatchingServiceImpl matchingEngineService;

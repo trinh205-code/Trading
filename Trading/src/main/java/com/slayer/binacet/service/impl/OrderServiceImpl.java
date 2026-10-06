@@ -65,8 +65,6 @@ public class OrderServiceImpl implements OrderService {
         BigDecimal amountToLock = BigDecimal.ZERO;
 
 
-
-
         if (type.equals(OrderType.LIMIT)) {
             if (orderPrice == null || orderPrice.compareTo(BigDecimal.ZERO) <= 0) {
                 throw new IllegalArgumentException("Lệnh LIMIT bắt buộc phải nhập mức giá lớn hơn 0");

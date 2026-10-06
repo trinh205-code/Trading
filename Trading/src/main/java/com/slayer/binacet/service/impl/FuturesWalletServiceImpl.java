@@ -39,7 +39,6 @@ public class FuturesWalletServiceImpl implements FuturesWalletService {
     private final UserRepository userRepository;
 
     private final FuturesWalletMapper futuresWalletMapper;
-    private final MarketRepository marketRepository;
 
     @Override
     public List<FuturesWalletResponse> getMyFuturesWallet() {

@@ -122,7 +122,6 @@ public class WalletServiceImpl implements WalletBalanceService {
             throw new RuntimeException("Số dư không đủ để thực hiện lệnh rút.");
         }
         wallet.setBalance(wallet.getBalance().subtract(request.getAmount()));
-        // TODO: Ở ứng dụng thực tế, sẽ cần lưu thông tin request.getDestinationAddress()
         // và request.getNetwork() vào bảng TransactionHistory để chờ gửi lên Blockchain.
 
         WalletBalance save = walletBalanceRepository.save(wallet);

@@ -11,14 +11,6 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.util.List;
 
-/**
- * Chỉ đọc danh sách vị thế (KHÔNG lock, KHÔNG transactional) rồi giao từng vị thế cho
- * FuturesLiquidationService xử lý trong transaction RIÊNG của nó. Tách bean này ra khỏi
- * FuturesLiquidationService là bắt buộc về mặt kỹ thuật — nếu gộp chung 1 class rồi tự
- * gọi @Transactional method từ chính @Scheduled method trong CÙNG class, Spring AOP proxy
- * sẽ bị bỏ qua (self-invocation), khiến @Transactional không có tác dụng gì, và 1 lỗi ở
- * vị thế thứ N sẽ không rollback đúng cách, có thể kéo theo dữ liệu sai ở các vị thế khác.
- */
 @Component
 @RequiredArgsConstructor
 @Slf4j

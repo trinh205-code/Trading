@@ -137,22 +137,6 @@ public class JwtService {
         6. kiểm tra quyền
      */
 
-//    public boolean isValidToken(String token, UserDetails userDetails) {
-//        try {
-//            if(!isTokenFormatValid(token)) {
-//                logger.info("token không đúng định dạng");
-//                return false;
-//            }
-//            if(!isSignatureValid(token)) {
-//                return false;
-//            }
-//
-//        } catch (Exception e) {
-//            throw new RuntimeException(e);
-//        }
-//
-//        return false;
-//    }
 
     public boolean isTokenFormatValid(String token) {
 

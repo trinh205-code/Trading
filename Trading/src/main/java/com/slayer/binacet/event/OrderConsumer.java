@@ -18,7 +18,7 @@ public class OrderConsumer {
 
     @KafkaListener(topics = "spot-order-events", groupId = "matching-engine-group")
     public void consumeOrder(OrderEvent event) {
-        log.info("⚙️ Kafka Consumer đang xử lý Order: {} [{}] - Action: {}",
+        log.info("Kafka Consumer đang xử lý Order: {} [{}] - Action: {}",
                 event.getOrderId(), event.getSymbol(), event.getAction());
         try {
             // LiveMatchingEngine nhận thẳng event hoặc orderId để khớp lệnh

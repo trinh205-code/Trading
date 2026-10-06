@@ -16,7 +16,7 @@ public class FuturesOrderConsumer {
 
     @KafkaListener(topics = "futures-orders", groupId = "futures-matching-engine-group")
     public void consumeOrder(OrderEvent event) {
-        log.info("⚙️ Kafka Consumer đang xử lý Futures Order: {} [{}] - Action: {}",
+        log.info(" Kafka Consumer đang xử lý Futures Order: {} [{}] - Action: {}",
                 event.getOrderId(), event.getSymbol(), event.getAction());
         try {
             matchingEngineService.matchFuturesOrder(event.getOrderId());

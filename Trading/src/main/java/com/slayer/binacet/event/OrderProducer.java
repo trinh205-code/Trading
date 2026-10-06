@@ -22,10 +22,10 @@ public class OrderProducer {
             kafkaTemplate.send(SPOT_ORDER_TOPIC, event.getSymbol(), event)
                     .whenComplete((res, ex) -> {
                         if (ex == null) {
-                            log.info("📥 [KAFKA] Đã đẩy Order [{}] vào topic {} partition {}",
+                            log.info("[KAFKA] Đã đẩy Order [{}] vào topic {} partition {}",
                                     event.getOrderId(), SPOT_ORDER_TOPIC, res.getRecordMetadata().partition());
                         } else {
-                            log.error("❌ Lỗi khi gửi Order vào Kafka: {}", ex.getMessage());
+                            log.error("Lỗi khi gửi Order vào Kafka: {}", ex.getMessage());
                         }
                     });
         };

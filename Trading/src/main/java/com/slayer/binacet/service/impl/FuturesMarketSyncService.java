@@ -71,7 +71,7 @@ public class FuturesMarketSyncService {
         try {
             response = restTemplate.getForObject(BINANCE_FUTURES_EXCHANGE_INFO_URL, BinanceFuturesExchangeInfoResponse.class);
         } catch (Exception e) {
-            log.warn("⚠️ Không thể kết nối tới Binance Futures API ({}): {}. Sử dụng dữ liệu có sẵn trong hệ thống.",
+            log.warn("Không thể kết nối tới Binance Futures API ({}): {}. Sử dụng dữ liệu có sẵn trong hệ thống.",
                     BINANCE_FUTURES_EXCHANGE_INFO_URL, e.getMessage());
             initDefaultInstrumentsIfEmpty();
             return;
@@ -191,7 +191,7 @@ public class FuturesMarketSyncService {
             if(price != null && price.compareTo(BigDecimal.ZERO) > 0) {
                 return price;
             }
-            log.error("⚠️ Không có giá realtime cho {} trong MarketPriceCache", symbol);
+            log.error("Không có giá realtime cho {} trong MarketPriceCache", symbol);
             throw new RuntimeException("Hệ thống chưa có giá thị trường cho " + symbol + ", vui lòng thử lại sau ít giây.");
         }
         return price;

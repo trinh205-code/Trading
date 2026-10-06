@@ -47,21 +47,20 @@ public class BinanceWebSocketClient extends TextWebSocketHandler {
             container.setDefaultMaxBinaryMessageBufferSize(10 * 1024 * 1024);
             StandardWebSocketClient client = new StandardWebSocketClient(container);
 
-            log.info("🚀 Đang kết nối Binance Futures All-Market WebSocket...");
 
             // Bắt buộc xử lý CompletableFuture để không bị nuốt lỗi Handshake
             client.execute(this, ALL_MARKET_STREAM_URL).whenComplete((session, throwable) -> {
                 if (throwable != null) {
-                    log.error("❌ Kết nối WebSocket thất bại ở bước Handshake: {}", throwable.getMessage(), throwable);
+                    log.error("Kết nối WebSocket thất bại ở bước Handshake: {}", throwable.getMessage(), throwable);
                     scheduleReconnect();
                 } else {
                     this.currentSession = session;
                     reconnecting.set(false);
-                    log.info("✅ KẾT NỐI WEBSOCKET BINANCE THÀNH CÔNG! Session ID: {}", session.getId());
+                    log.info("KẾT NỐI WEBSOCKET BINANCE THÀNH CÔNG! Session ID: {}", session.getId());
                 }
             });
         } catch (Exception e) {
-            log.error("❌ Lỗi ngoại lệ khi gọi connect: ", e);
+            log.error("Lỗi ngoại lệ khi gọi connect: ", e);
             scheduleReconnect();
         }
     }
@@ -74,26 +73,26 @@ public class BinanceWebSocketClient extends TextWebSocketHandler {
 
     @Override
     public void handleTransportError(WebSocketSession session, Throwable exception) {
-        log.error("❌ Lỗi truyền tải WebSocket: ", exception);
+        log.error(" Lỗi truyền tải WebSocket: ", exception);
         scheduleReconnect();
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        log.warn("⚠️ WebSocket bị đóng: Code={}, Reason={}", status.getCode(), status.getReason());
+        log.warn(" WebSocket bị đóng: Code={}, Reason={}", status.getCode(), status.getReason());
         scheduleReconnect();
     }
 
     private void scheduleReconnect() {
         if (reconnecting.compareAndSet(false, true)) {
-            log.warn("🔄 Sẽ thử kết nối lại WebSocket sau 10 giây...");
+            log.warn(" Sẽ thử kết nối lại WebSocket sau 10 giây...");
         }
     }
 
     @Scheduled(fixedDelay = 10000)
     public void reconnectIfNeeded() {
         if (reconnecting.get()) {
-            log.info("🔄 Đang thử kết nối lại Binance WebSocket...");
+            log.info("Đang thử kết nối lại Binance WebSocket...");
             doConnect();
         }
     }
@@ -113,7 +112,7 @@ public class BinanceWebSocketClient extends TextWebSocketHandler {
                 processTick(dataNode);
             }
         } catch (Exception e) {
-            log.error("❌ Lỗi parse tin nhắn Binance WebSocket: {}", e.getMessage());
+            log.error("Lỗi parse tin nhắn Binance WebSocket: {}", e.getMessage());
         }
     }
 

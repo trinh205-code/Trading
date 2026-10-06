@@ -21,10 +21,6 @@ import java.util.List;
  * Quét định kỳ các lệnh Futures LIMIT đang chờ (OPEN/PARTIALLY_FILLED), kiểm tra điều kiện
  * giá so với MarketPriceCache. Nếu đủ điều kiện, đẩy vào Kafka để FuturesOrderConsumer gọi
  * matchFuturesOrder() xử lý khớp thật.
- *
- * Đây là mảnh còn THIẾU khiến lệnh LIMIT chỉ được kiểm tra đúng 1 lần lúc tạo (trong
- * createFuturesOrder) rồi treo mãi nếu chưa đủ điều kiện ngay lúc đó — không có cơ chế
- * nào quay lại kiểm tra khi giá biến động sau này.
  */
 @Service
 @RequiredArgsConstructor
@@ -54,7 +50,7 @@ public class FuturesLimitOrderScanner {
                         || (order.getSide() == OrderSide.SELL && order.getPrice().compareTo(markPrice) <= 0);
 
                 if (shouldTrigger) {
-                    log.info("🎯 Lệnh LIMIT {} đủ điều kiện khớp (giá đặt={}, giá thị trường={})",
+                    log.info("Lệnh LIMIT {} đủ điều kiện khớp (giá đặt={}, giá thị trường={})",
                             order.getId(), order.getPrice(), markPrice);
 
                     OrderEvent event = orderEventMapper.toFuturesOrderEvent(order, "TRIGGER");

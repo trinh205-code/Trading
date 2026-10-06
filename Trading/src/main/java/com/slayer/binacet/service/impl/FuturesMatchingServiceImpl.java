@@ -180,8 +180,6 @@ FuturesMatchingServiceImpl  {
 
         // ============================================================
         // TRƯỜNG HỢP 1: Mở mới hoặc cộng thêm cùng chiều
-        // Không giải phóng margin, không có PnL thực nhận, không khóa thêm ở đây
-        // (việc khóa margin ban đầu cho case này đã xảy ra ở FuturesOrderServiceImpl.createFuturesOrder,
         // ============================================================
         if (sameDirection) {
             BigDecimal newQty = existingQty.add(signedDelta);

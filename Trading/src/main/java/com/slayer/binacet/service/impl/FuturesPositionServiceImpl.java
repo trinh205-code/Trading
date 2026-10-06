@@ -196,7 +196,7 @@ public class FuturesPositionServiceImpl implements FuturesPositionService {
 
         BigDecimal avgPrice = position.getAvgPrice();
         if (avgPrice == null) {
-            log.error("⚠️ Vị thế {} có activePos={} nhưng avgPrice=null", position.getId(), position.getActivePos());
+            log.error("Vị thế {} có activePos={} nhưng avgPrice=null", position.getId(), position.getActivePos());
             response.setUnrealizedPnl(BigDecimal.ZERO);
             return response;
         }
