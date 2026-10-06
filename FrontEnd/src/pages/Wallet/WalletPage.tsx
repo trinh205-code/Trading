@@ -39,7 +39,9 @@ import { TradeResponse } from '../../types/order';
 import { futuresApi } from '../../api/futuresApi';
 import { orderApi } from '../../api/orderApi';
 import { ExportReportModal } from '../../components/trading/ExportReportModal';
+import { P2PTransferModal } from '../../components/wallet/P2PTransferModal';
 import { WalletProfitChart } from '../../components/wallet/WalletProfitChart';
+import { userApi } from '../../api/userApi';
 
 type MainTab = 'overview' | 'funding' | 'trading' | 'orderCenter';
 
@@ -93,6 +95,22 @@ export const WalletPage: React.FC = () => {
   const [loadingPositions, setLoadingPositions] = useState<boolean>(false);
 
   const [transferModalOpen, setTransferModalOpen] = useState(false);
+  const [p2pTransferModalOpen, setP2pTransferModalOpen] = useState(false);
+
+  const handleOpenP2PTransfer = async () => {
+    try {
+      const res = await userApi.getTransferPinStatus();
+      if (res.success && res.data?.hasTransferPin) {
+        setP2pTransferModalOpen(true);
+      } else {
+        // Chưa có mã OTP -> Chuyển đến trang tạo mã OTP trong phần Hồ sơ & Bảo mật
+        navigate('/profile?setupOtp=true');
+      }
+    } catch {
+      // Fallback
+      setP2pTransferModalOpen(true);
+    }
+  };
   const [transferDirection, setTransferDirection] = useState<'SPOT_TO_FUTURES' | 'FUTURES_TO_SPOT'>('SPOT_TO_FUTURES');
   const [transferCurrency, setTransferCurrency] = useState('USDT');
   const [transferAmount, setTransferAmount] = useState('');
@@ -969,7 +987,14 @@ export const WalletPage: React.FC = () => {
                     }}
                     className="px-5 py-2 rounded-full bg-[#222222] hover:bg-[#2b2b2b] text-white font-bold transition-all text-xs border border-[#333333]"
                   >
-                    Chuyển tiền
+                    Chuyển ví
+                  </button>
+
+                  <button
+                    onClick={handleOpenP2PTransfer}
+                    className="px-5 py-2 rounded-full bg-[#00c076]/15 hover:bg-[#00c076]/25 text-[#00c076] font-bold transition-all text-xs border border-[#00c076]/30"
+                  >
+                    Chuyển P2P
                   </button>
 
                   <button
@@ -2063,6 +2088,15 @@ export const WalletPage: React.FC = () => {
             : 'orders'
         }
       />
+
+      {/* P2P Transfer Modal with 4-digit OTP */}
+      <P2PTransferModal
+        isOpen={p2pTransferModalOpen}
+        onClose={() => setP2pTransferModalOpen(false)}
+        wallets={wallets}
+        onSuccess={() => fetchWallets()}
+      />
+
     </div>
   );
 };

@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -133,6 +134,15 @@ public class WalletServiceImpl implements WalletBalanceService {
     public void transfer(TransferRequest request) {
         User sender = getCurrentUser();
 
+        String currentPin = sender.getTransferPin();
+        if (currentPin == null || currentPin.isBlank()) {
+            throw new RuntimeException("Bạn chưa thiết lập mã OTP chuyển tiền. Vui lòng tạo mã OTP trước khi giao dịch!");
+        }
+
+        if (!currentPin.equals(request.getOtp())) {
+            throw new RuntimeException("Mã OTP xác thực không chính xác");
+        }
+
         if(sender.getId().equals(request.getReceiverId())) {
             throw new RuntimeException("Không thể tự chuyển tiền cho chính mình");
         }
@@ -162,6 +172,34 @@ public class WalletServiceImpl implements WalletBalanceService {
 
         walletBalanceRepository.save(senderWallet);
         walletBalanceRepository.save(receiverWallet);
+    }
+
+    @Override
+    public Map<String, String> getReceiverInfo(String receiverId) {
+        User receiver = userRepository.findById(receiverId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy người nhận với UID này"));
+
+        String email = receiver.getEmail();
+        String maskedEmail = email;
+        if (email != null && email.contains("@")) {
+            int at = email.indexOf("@");
+            if (at > 2) {
+                maskedEmail = email.substring(0, 2) + "***" + email.substring(at);
+            } else {
+                maskedEmail = "***" + email.substring(at);
+            }
+        }
+
+        String name = receiver.getFullName();
+        if (name == null || name.isBlank()) {
+            name = "Người dùng Binance";
+        }
+
+        return Map.of(
+                "receiverId", receiver.getId(),
+                "fullName", name,
+                "maskedEmail", maskedEmail
+        );
     }
 
     @Override

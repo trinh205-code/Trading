@@ -33,6 +33,9 @@ public class User implements UserDetails {
     private String phoneNumber;
     private String password;
 
+    @Column(name = "transfer_pin", length = 100)
+    private String transferPin;
+
     @Enumerated(EnumType.STRING)
     private AuthProvider authProvider;
 

@@ -1,6 +1,7 @@
 package com.slayer.binacet.controller;
 
 
+import com.slayer.binacet.dto.request.ChangeTransferPinRequest;
 import com.slayer.binacet.dto.response.ApiResponse;
 import com.slayer.binacet.dto.request.ChangePasswordRequest;
 import com.slayer.binacet.dto.request.UpdateUserRequest;
@@ -62,8 +63,21 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success("đổi mật khẩu thành công"));
     }
 
+    @GetMapping("/me/transfer-pin/status")
+    public ResponseEntity<Object> getTransferPinStatus() {
+        boolean hasPin = userService.hasTransferPin();
+        return ResponseEntity.ok(ApiResponse.success(java.util.Map.of("hasTransferPin", hasPin), "Lấy trạng thái mã OTP thành công"));
+    }
 
+    @PostMapping("/me/transfer-pin")
+    public ResponseEntity<Object> createTransferPin(@RequestBody @Valid com.slayer.binacet.dto.request.CreateTransferPinRequest request) {
+        userService.createTransferPin(request);
+        return ResponseEntity.ok(ApiResponse.success("Thiết lập mã OTP chuyển tiền thành công"));
+    }
 
-
-
+    @PutMapping("/me/transfer-pin")
+    public ResponseEntity<Object> changeTransferPin(@RequestBody @Valid ChangeTransferPinRequest request) {
+        userService.changeTransferPin(request);
+        return ResponseEntity.ok(ApiResponse.success("Đổi mã OTP chuyển tiền thành công"));
+    }
 }

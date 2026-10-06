@@ -8,6 +8,7 @@ import com.slayer.binacet.dto.response.WalletResponse;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 public interface WalletBalanceService {
     List<WalletResponse> getMyWallets();
@@ -17,6 +18,8 @@ public interface WalletBalanceService {
     WalletResponse withdraw(WithdrawRequest request);
 
     void transfer(TransferRequest request);
+
+    Map<String, String> getReceiverInfo(String receiverId);
 
     void lockBalance(String userId, String currency, BigDecimal amount);
 

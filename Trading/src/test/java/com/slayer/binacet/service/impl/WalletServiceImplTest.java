@@ -54,6 +54,7 @@ class WalletServiceImplTest {
         testUser = User.builder()
                 .id("user-101")
                 .email("user101@example.com")
+                .transferPin("1234")
                 .build();
 
         receiverUser = User.builder()
@@ -202,12 +203,39 @@ class WalletServiceImplTest {
     }
 
     @Test
+    @DisplayName("transfer: Báo lỗi khi người gửi chưa thiết lập mã OTP")
+    void testTransfer_NoOtpSet() {
+        testUser.setTransferPin(null);
+        TransferRequest request = new TransferRequest();
+        request.setReceiverId("user-202");
+        request.setCurrency("USDT");
+        request.setAmount(new BigDecimal("50"));
+        request.setOtp("1234");
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> walletService.transfer(request));
+        assertTrue(ex.getMessage().contains("chưa thiết lập mã OTP"));
+    }
+
+    @Test
+    @DisplayName("transfer: Báo lỗi khi mã OTP không chính xác")
+    void testTransfer_InvalidOtp() {
+        TransferRequest request = new TransferRequest();
+        request.setReceiverId("user-202");
+        request.setCurrency("USDT");
+        request.setAmount(new BigDecimal("50"));
+        request.setOtp("9999"); // sai mã
+
+        assertThrows(RuntimeException.class, () -> walletService.transfer(request));
+    }
+
+    @Test
     @DisplayName("transfer: Báo lỗi khi tự chuyển tiền cho chính mình")
     void testTransfer_SelfTransfer() {
         TransferRequest request = new TransferRequest();
         request.setReceiverId("user-101");
         request.setCurrency("USDT");
         request.setAmount(new BigDecimal("50"));
+        request.setOtp("1234");
 
         assertThrows(RuntimeException.class, () -> walletService.transfer(request));
     }
@@ -219,6 +247,7 @@ class WalletServiceImplTest {
         request.setReceiverId("unknown-user");
         request.setCurrency("USDT");
         request.setAmount(new BigDecimal("50"));
+        request.setOtp("1234");
 
         when(userRepository.findById("unknown-user")).thenReturn(Optional.empty());
 
@@ -232,6 +261,7 @@ class WalletServiceImplTest {
         request.setReceiverId("user-202");
         request.setCurrency("USDT");
         request.setAmount(new BigDecimal("500"));
+        request.setOtp("1234");
 
         WalletBalance senderWallet = WalletBalance.builder()
                 .user(testUser)
@@ -253,6 +283,7 @@ class WalletServiceImplTest {
         request.setReceiverId("user-202");
         request.setCurrency("USDT");
         request.setAmount(new BigDecimal("100"));
+        request.setOtp("1234");
 
         WalletBalance senderWallet = WalletBalance.builder()
                 .user(testUser)

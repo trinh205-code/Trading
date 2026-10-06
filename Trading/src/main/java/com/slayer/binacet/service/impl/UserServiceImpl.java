@@ -1,6 +1,7 @@
 package com.slayer.binacet.service.impl;
 
 import com.slayer.binacet.dto.request.ChangePasswordRequest;
+import com.slayer.binacet.dto.request.ChangeTransferPinRequest;
 import com.slayer.binacet.dto.request.UpdateUserRequest;
 import com.slayer.binacet.dto.response.UserResponse;
 import com.slayer.binacet.Enums.Role;
@@ -133,10 +134,61 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public boolean hasTransferPin() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof User loggedInUser)) {
+            return false;
+        }
+
+        User currentUser = userRepository.findById(loggedInUser.getId()).orElse(null);
+        return currentUser != null && currentUser.getTransferPin() != null && !currentUser.getTransferPin().isBlank();
+    }
+
+    @Override
+    public void createTransferPin(com.slayer.binacet.dto.request.CreateTransferPinRequest request) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        User loggedInUser = (User) authentication.getPrincipal();
+
+        User currentUser = userRepository.findById(loggedInUser.getId()).orElseThrow(
+                () -> new UserNotFoundException("User not found: " + loggedInUser.getId())
+        );
+
+        if (currentUser.getTransferPin() != null && !currentUser.getTransferPin().isBlank()) {
+            throw new IllegalArgumentException("Bạn đã thiết lập mã OTP rồi. Vui lòng sử dụng chức năng Đổi mã OTP!");
+        }
+
+        currentUser.setTransferPin(request.getPin());
+        userRepository.save(currentUser);
+    }
+
+    @Override
+    public void changeTransferPin(ChangeTransferPinRequest request) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        User loggedInUser = (User) authentication.getPrincipal();
+
+        User currentUser = userRepository.findById(loggedInUser.getId()).orElseThrow(
+                () -> new UserNotFoundException("User not found: " + loggedInUser.getId())
+        );
+
+        String currentPin = currentUser.getTransferPin();
+        if (currentPin == null || currentPin.isBlank()) {
+            throw new IllegalArgumentException("Bạn chưa thiết lập mã OTP chuyển tiền. Vui lòng tạo mã OTP mới!");
+        }
+
+        if (!currentPin.equals(request.getOldPin())) {
+            throw new IllegalArgumentException("Mã OTP cũ không chính xác");
+        }
+
+        if (currentPin.equals(request.getNewPin())) {
+            throw new IllegalArgumentException("Mã OTP mới không được trùng với mã OTP cũ");
+        }
+
+        currentUser.setTransferPin(request.getNewPin());
+        userRepository.save(currentUser);
+    }
+
+    @Override
     public void updateAvatar(MultipartFile file) {
 
     }
-
-
-
 }
