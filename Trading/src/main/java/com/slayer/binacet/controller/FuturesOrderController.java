@@ -42,7 +42,6 @@ public class FuturesOrderController {
             @RequestParam(required = false) String status,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
 
-
         Page<FuturesOrderResponse> orders = futuresOrderService.getMyFuturesOrders(symbol, status, pageable);
 
         return ResponseEntity.ok(ApiResponse.success(orders, "Lấy danh sách lệnh thành công"));

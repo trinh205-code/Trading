@@ -1,0 +1,787 @@
+{
+	"info": {
+		"_postman_id": "tvn-exchange-api-collection-2026",
+		"name": "TVN Exchange API Collection",
+		"description": "Bộ sưu tập Postman API hoàn chỉnh cho nền tảng sàn giao dịch TVN Exchange (Backend Spring Boot 3 + Java 21). Bao gồm các luồng: Auth, Quản lý tài khoản, Digital OTP 4 số, Chuyển tiền P2P, Spot Trading, Futures Trading, Market Data và Nạp tiền VNPay.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "refreshToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "receiverId",
+			"value": "user-receiver-id",
+			"type": "string"
+		},
+		{
+			"key": "symbol",
+			"value": "BTCUSDT",
+			"type": "string"
+		},
+		{
+			"key": "orderId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "futuresOrderId",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "1. Authentication",
+			"item": [
+				{
+					"name": "1.1 Đăng ký tài khoản (Register)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"fullName\": \"Trần Văn Nam\",\n  \"email\": \"tvn_user@example.com\",\n  \"password\": \"Password123!\",\n  \"phoneNumber\": \"0912345678\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/register",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "register"]
+						}
+					}
+				},
+				{
+					"name": "1.2 Đăng nhập (Login)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data) {",
+									"    if (jsonData.data.accessToken) {",
+									"        pm.collectionVariables.set('token', jsonData.data.accessToken);",
+									"    }",
+									"    if (jsonData.data.refreshToken) {",
+									"        pm.collectionVariables.set('refreshToken', jsonData.data.refreshToken);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"tvn_user@example.com\",\n  \"password\": \"Password123!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "login"]
+						}
+					}
+				},
+				{
+					"name": "1.3 Làm mới Token (Refresh Token)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/refresh",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "refresh"]
+						}
+					}
+				},
+				{
+					"name": "1.4 Đăng xuất (Logout)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/logout",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "logout"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "2. User & Digital OTP",
+			"item": [
+				{
+					"name": "2.1 Lấy thông tin cá nhân (Get Profile)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/users/me",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "users", "me"]
+						}
+					}
+				},
+				{
+					"name": "2.2 Đổi mật khẩu (Change Password)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"oldPassword\": \"Password123!\",\n  \"newPassword\": \"NewPassword456!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/users/me/password",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "users", "me", "password"]
+						}
+					}
+				},
+				{
+					"name": "2.3 Kiểm tra trạng thái Mã OTP (OTP Status)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/users/me/transfer-pin/status",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "users", "me", "transfer-pin", "status"]
+						}
+					}
+				},
+				{
+					"name": "2.4 Thiết lập Mã OTP lần đầu (Create Transfer PIN)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"pin\": \"6868\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/users/me/transfer-pin",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "users", "me", "transfer-pin"]
+						}
+					}
+				},
+				{
+					"name": "2.5 Đổi Mã OTP (Change Transfer PIN)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"oldPin\": \"6868\",\n  \"newPin\": \"8888\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/users/me/transfer-pin",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "users", "me", "transfer-pin"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "3. Wallet & P2P Transfer",
+			"item": [
+				{
+					"name": "3.1 Lấy danh sách ví Spot của tôi (Get Wallets)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/wallet/me",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "wallet", "me"]
+						}
+					}
+				},
+				{
+					"name": "3.2 Nhận coin thử nghiệm (Claim Faucet)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/wallet/faucet",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "wallet", "faucet"]
+						}
+					}
+				},
+				{
+					"name": "3.3 Tra cứu thông tin người nhận theo UID (Get Receiver Info)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/wallet/user/{{receiverId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "wallet", "user", "{{receiverId}}"]
+						}
+					}
+				},
+				{
+					"name": "3.4 Chuyển tiền P2P nội bộ kèm OTP (Transfer P2P)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"receiverId\": \"{{receiverId}}\",\n  \"currency\": \"USDT\",\n  \"amount\": 50.0,\n  \"otp\": \"8888\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/wallet/transfer",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "v1", "wallet", "transfer"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "4. Spot Trading",
+			"item": [
+				{
+					"name": "4.1 Đặt lệnh Spot Mua/Bán (Create Order)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data && jsonData.data.id) {",
+									"    pm.collectionVariables.set('orderId', jsonData.data.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"symbol\": \"BTCUSDT\",\n  \"side\": \"BUY\",\n  \"orderType\": \"LIMIT\",\n  \"price\": 64000.0,\n  \"quantity\": 0.05\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/orders",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "orders"]
+						}
+					}
+				},
+				{
+					"name": "4.2 Hủy lệnh Spot (Cancel Order)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/orders/{{orderId}}/cancel",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "orders", "{{orderId}}", "cancel"]
+						}
+					}
+				},
+				{
+					"name": "4.3 Chi tiết lệnh theo ID (Get Order By ID)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/orders/{{orderId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "orders", "{{orderId}}"]
+						}
+					}
+				},
+				{
+					"name": "4.4 Danh sách lệnh của tôi (Get My Orders)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/orders?symbol={{symbol}}&page=0&size=10",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "orders"],
+							"query": [
+								{
+									"key": "symbol",
+									"value": "{{symbol}}"
+								},
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "10"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "4.5 Lịch sử khớp lệnh Spot của tôi (Get My Trades)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/orders/trades?symbol={{symbol}}&page=0&size=10",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "orders", "trades"],
+							"query": [
+								{
+									"key": "symbol",
+									"value": "{{symbol}}"
+								},
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "10"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "5. Market Data",
+			"item": [
+				{
+					"name": "5.1 Toàn bộ bảng giá thị trường 24h (All Prices)",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{baseUrl}}/api/market/prices",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "market", "prices"]
+						}
+					}
+				},
+				{
+					"name": "5.2 Chi tiết giá 1 cặp coin (Price by Symbol)",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{baseUrl}}/api/market/price/{{symbol}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "market", "price", "{{symbol}}"]
+						}
+					}
+				},
+				{
+					"name": "5.3 Sổ lệnh độ sâu Order Book (Depth)",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{baseUrl}}/api/market/order-book/{{symbol}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "market", "order-book", "{{symbol}}"]
+						}
+					}
+				},
+				{
+					"name": "5.4 Danh mục Top Coins (Top Coins Overview)",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{baseUrl}}/api/market/top-coins",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "market", "top-coins"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "6. Futures Trading",
+			"item": [
+				{
+					"name": "6.1 Danh mục hợp đồng Futures (Instruments)",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{baseUrl}}/api/futures/instruments",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "futures", "instruments"]
+						}
+					}
+				},
+				{
+					"name": "6.2 Xem số dư ví Futures (Get Futures Wallet)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/futures/wallet",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "futures", "wallet"]
+						}
+					}
+				},
+				{
+					"name": "6.3 Chuyển tiền Spot -> Futures (Transfer In)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"currency\": \"USDT\",\n  \"amount\": 500.0\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/futures/wallet/transfer-in",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "futures", "wallet", "transfer-in"]
+						}
+					}
+				},
+				{
+					"name": "6.4 Chuyển tiền Futures -> Spot (Transfer Out)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"currency\": \"USDT\",\n  \"amount\": 200.0\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/futures/wallet/transfer-out",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "futures", "wallet", "transfer-out"]
+						}
+					}
+				},
+				{
+					"name": "6.5 Danh sách vị thế đang mở (Get Positions)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/futures/positions",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "futures", "positions"]
+						}
+					}
+				},
+				{
+					"name": "6.6 Đặt lệnh Futures (Create Futures Order)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.success && jsonData.data && jsonData.data.id) {",
+									"    pm.collectionVariables.set('futuresOrderId', jsonData.data.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"symbol\": \"BTCUSDT\",\n  \"side\": \"BUY\",\n  \"orderType\": \"LIMIT\",\n  \"price\": 64200.0,\n  \"quantity\": 0.1,\n  \"leverage\": 20,\n  \"reduceOnly\": false\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/futures/orders",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "futures", "orders"]
+						}
+					}
+				},
+				{
+					"name": "6.7 Hủy lệnh Futures (Cancel Futures Order)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/futures/orders/{{futuresOrderId}}/cancel",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "futures", "orders", "{{futuresOrderId}}", "cancel"]
+						}
+					}
+				},
+				{
+					"name": "6.8 Lịch sử lệnh Futures (Get Futures Orders)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/futures/orders?symbol={{symbol}}&page=0&size=10",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "futures", "orders"],
+							"query": [
+								{
+									"key": "symbol",
+									"value": "{{symbol}}"
+								},
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "10"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "7. Payment (VNPay)",
+			"item": [
+				{
+					"name": "7.1 Tạo liên kết nạp tiền VNPay (Create Deposit)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"amountVnd\": 2500000,\n  \"bankCode\": \"\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/payment/vnpay-create",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "payment", "vnpay-create"]
+						}
+					}
+				},
+				{
+					"name": "7.2 Lịch sử nạp tiền (Payment History)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/payment/history?page=0&size=10",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "payment", "history"],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "10"
+								}
+							]
+						}
+					}
+				}
+			]
+		}
+	]
+}

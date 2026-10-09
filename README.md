@@ -1,4 +1,4 @@
-# 🚀 TVN Exchange - Nền Tảng Giao Dịch Tiền Mã Hoá (Crypto Exchange)
+# TVN Exchange - Nền Tảng Giao Dịch Tiền Mã Hoá Demo (Crypto Exchange)
 
 <div align="center">
 
@@ -8,81 +8,93 @@
 ![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
 ![Kafka](https://img.shields.io/badge/Apache%20Kafka-231F20?style=for-the-badge&logo=apachekafka&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=for-the-badge&logo=redis&logoColor=white)
 ![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?style=for-the-badge&logo=mysql&logoColor=white)
 ![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-v4-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
 
-**Hệ thống sàn giao dịch tiền mã hóa hiệu năng cao, hỗ trợ giao dịch Giao ngay (Spot), Hợp đồng tương lai (Futures), Chuyển tiền P2P bảo mật bằng Digital OTP 4 số thời gian thực.**
-
-[Tính Năng](#-tính-năng-chính) • [Tài Liệu Base](#-tài-liệu-thiết-kế--tổng-kết) • [Kiến Trúc](#-kiến-trúc-hệ-thống) • [Công Nghệ](#-công-nghệ-sử-dụng) • [Cài Đặt & Chạy](#-hướng-dẫn-cài-đặt--khởi-chạy) • [Cấu Trúc Thư Mục](#-cấu-trúc-thư-mục)
+**Hệ thống sàn giao dịch tiền mã hóa hiệu năng cao, hỗ trợ giao dịch Giao ngay (Spot), Hợp đồng tương lai (Futures), Chuyển tiền bảo mật bằng Digital OTP thời gian thực.**
 
 </div>
 
 ---
 
-## 📚 TÀI LIỆU THIẾT KẾ & TỔNG KẾT
-- 🏛️ **[PROJECT_BASE.md](PROJECT_BASE.md)**: Tài liệu thiết kế Base dự án cho Backend (Spring Boot 3 + Java 21) & Frontend (React 19 + TypeScript + Vite + Tailwind CSS v4).
-- 📋 **[IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md)**: Báo cáo tổng kết toàn bộ tính năng đã triển khai, danh mục APIs, bảng cơ sở dữ liệu và kết quả kiểm thử.
+##  TÀI LIỆU CHUYÊN SÂU TRONG THƯ MỤC `docs/`
+-  **[docs/BACKEND_REQUIREMENTS.md](docs/BACKEND_REQUIREMENTS.md)**: Đặc tả chi tiết các yêu cầu chức năng & phi chức năng của hệ thống backend.
+-  **[docs/IMPLEMENTATION_SUMMARY.md](docs/IMPLEMENTATION_SUMMARY.md)**: Báo cáo cách thức hiện thực hóa (Matching Engine, Concurrency, Kafka, Digital OTP, Locking).
+-  **[docs/API_DOCUMENTATION.md](docs/API_DOCUMENTATION.md)**: Danh mục toàn bộ REST API, schema payload, mã lỗi và định dạng phản hồi.
+-  **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**: Sơ đồ kiến trúc phân tầng, luồng xử lý Kafka, cơ chế quản trị rủi ro Futures và sơ đồ ERD.
+-  **[docs/TESTING.md](docs/TESTING.md)**: Chiến lược kiểm thử tự động, danh mục test cases và hướng dẫn chạy test suite.
+-  **[docs/TVN_Exchange_API.postman_collection.json](docs/TVN_Exchange_API.postman_collection.json)**: Bộ sưu tập Postman Collection sẵn sàng import và chạy test API.
 
 ---
 
-## 📖 Giới Thiệu Dự Án
+## 1. Project Overview (Tổng Quan Dự Án)
 
-**TVN Exchange** là nền tảng giao dịch tài sản số toàn diện được xây dựng theo tiêu chuẩn của các sàn giao dịch quốc tế hàng đầu (như Binance, OKX). Hệ thống cung cấp trải nghiệm giao dịch mượt mà với độ trễ siêu thấp, nhận diện thương hiệu tự hào Việt Nam với logo khối cờ Tổ quốc `[ V ★ N ]` nền đỏ sao vàng, giao diện tối ưu hóa typography `Be Vietnam Pro`, và khả năng xử lý khối lượng lệnh lớn thông qua cơ chế hàng đợi bất đồng bộ **Apache Kafka**.
-
----
-
-## ✨ Tính Năng Chính
-
-### 1. 🤝 Chuyển Tiền P2P Nội Bộ & Digital OTP 4 Số (Mới)
-- **Digital OTP bảo mật (Smart OTP MBBank style)**: Mã PIN 4 chữ số lưu trữ trực tiếp trên tài khoản người dùng (`User.transferPin`), không gửi qua email, giúp giao dịch tức thì và bảo mật tuyệt đối.
-- **Tự động chuyển hướng tạo OTP**: Nếu tài khoản chưa tạo mã OTP, khi bấm "Chuyển P2P", hệ thống tự động điều hướng sang trang **Hồ sơ & Bảo mật** (`/profile?setupOtp=true`) để kích hoạt.
-- **Tự động nhận diện người nhận (Debounced Auto-check)**: Khi dán hoặc nhập UID người nhận, hệ thống tự động tra cứu và hiển thị tên người nhận cùng email ẩn danh (`Nguyễn Văn A (a***@gmail.com)`).
-- **Chuyển tiền tức thời giữa 2 ví Spot (`WalletBalance`)**: Thực hiện an toàn trong một Database Transaction duy nhất.
-
-### 2. 🛡️ Trang Hồ Sơ & Bảo Mật (`/profile`)
-- Quản lý thông tin tài khoản: UID, Họ tên, Email, Số điện thoại, Trạng thái tài khoản đã xác thực.
-- Quản lý riêng biệt cho **Mã OTP Chuyển Tiền (Digital OTP)**:
-  - Hiển thị huy hiệu trạng thái: `✓ Đã kích hoạt` / `⚠ Chưa thiết lập`.
-  - Nút thiết lập mã OTP lần đầu.
-  - Nút đổi mã OTP (yêu cầu nhập mã cũ và mã mới).
-- Quản lý **Mật khẩu đăng nhập**: Cập nhật mật khẩu bảo vệ tài khoản.
-
-### 3. 📈 Giao Dịch Giao Ngay (Spot Trading)
-- **Đa dạng loại lệnh**: Lệnh Thị trường (`MARKET`) và Lệnh Giới hạn (`LIMIT`) cho cả hai chiều Mua (`BUY`) và Bán (`SELL`).
-- **Khớp lệnh tức thời**: Cơ chế khớp lệnh tốc độ cao (`Matching Engine`).
-- **Sổ lệnh thời gian thực (Order Book Depth)**: Hiển thị độ sâu thị trường, tỷ lệ Bán/Mua trực quan, cập nhật tự động qua WebSocket.
-- **Hủy lệnh & Hoàn tiền thông minh**: Hoàn trả và mở khóa số dư ví ngay lập tức khi hủy lệnh mở.
-
-### 4. ⚡ Giao Dịch Hợp Đồng Tương Lai (Futures Trading)
-- **Ký quỹ Isolated Margin**: Quản lý rủi ro độc lập cho từng vị thế mở.
-- **Đòn bẩy tài chính linh hoạt**: Tùy chỉnh mức đòn bẩy phù hợp với khẩu vị rủi ro.
-- **Lệnh Giảm vị thế (Reduce-Only)**: Đảm bảo chỉ đóng hoặc thu hẹp vị thế mà không vô tình đảo chiều vị thế.
-- **Kiểm soát rủi ro thông minh**: Ngăn chặn người dùng đặt trùng lặp lệnh đóng 100% vị thế bằng lệnh Limit thứ hai (chuẩn rủi ro sàn lớn).
-- **Tính toán rủi ro thời gian thực**: Tự động tính Giá thanh lý (Liquidation Price), Ký quỹ duy trì (Maintenance Margin), Lời/Lỗ chưa chốt (Unrealized PnL) và Lời/Lỗ đã chốt (Realized PnL).
-
-### 5. 📊 Biểu Đồ & Dữ Liệu Thị Trường (Trading Terminal)
-- **TradingView Charts chuyên nghiệp**: Tích hợp thư viện đồ thị `lightweight-charts` với đầy đủ các khung thời gian: `1m`, `5m`, `15m`, `1h`, `4h`, `1D`.
-- **Thống kê 24h đa chiều**: Giá cao nhất, giá thấp nhất, khối lượng giao dịch 24h, biên độ dao động giá theo thời gian thực.
-- **Chuyển đổi cặp coin nhanh chóng**: Tìm kiếm và chọn nhanh các cặp giao dịch phổ biến (BTC/USDT, ETH/USDT, SOL/USDT, BNB/USDT, XRP/USDT...).
-
-### 6. 💼 Quản Lý Ví & Tài Sản Đa Năng
-- **Phân tách ví chuẩn mực**: 
-  - **Ví Spot**: Quản lý tài sản giao ngay.
-  - **Ví Futures**: Phục vụ ký quỹ và quản lý lệnh phái sinh.
-- **Chuyển ví nội bộ tức thời (Spot ⇄ Futures)**: Chuyển đổi số dư giữa các ví với phí 0 đồng trong vòng vài mili-giây.
-- **Cổng nạp tiền VNPay**: Tích hợp cổng thanh toán Sandbox VNPay cho phép nạp tiền pháp định (VND) trực tiếp.
-- **Faucet Testnet**: Nhận coin thử nghiệm miễn phí để trải nghiệm toàn bộ tính năng giao dịch.
-- **Biểu đồ phân tích tài sản & PnL**: Trực quan hóa dòng tiền và hiệu quả danh mục đầu tư.
-
-### 7. 📑 Trung Tâm Lệnh & Xuất Báo Cáo Giao Dịch
-- **Tích hợp đồng bộ trong Trang Ví**: Xem toàn bộ lịch sử lệnh Spot, lệnh Futures, lịch sử khớp lệnh mà không cần chuyển hướng trang.
-- **Lọc thông minh**: Tìm kiếm theo cặp tiền, trạng thái lệnh và **khoảng thời gian tùy chỉnh** (Từ ngày - Đến ngày).
-- **Phân trang linh hoạt**: Phân trang chuẩn UX cho phép duyệt qua hàng nghìn lịch sử giao dịch.
-- **Xuất báo cáo Excel (`.xlsx`)**: Tải về file Excel chuyên nghiệp với độ rộng cột thoáng, căn chỉnh dữ liệu chuẩn tài chính, mã màu trạng thái rõ ràng.
+**TVN Exchange** là nền tảng giao dịch tài sản số toàn diện được xây dựng theo chuẩn mực của các sàn giao dịch quốc tế hàng đầu (như Binance, OKX):
+- **Đối tượng phục vụ**: Nhà đầu tư cá nhân và tổ chức có nhu cầu giao dịch tiền mã hóa giao ngay và phái sinh nhưng chưa có kinh nghiệm muốn tìm 1 nơi để học hỏi thử nghiệm.
 
 ---
 
-## 🏗️ Kiến Trúc Hệ Thống
+## 2. Features (Các Chức Năng Chính)
+
+###  2.1 Giao Dịch Giao Ngay (Spot Trading)
+- Đầy đủ các loại lệnh: Lệnh Giới hạn (`LIMIT`) và Lệnh Thị trường (`MARKET`) cho hai chiều `BUY` và `SELL`.
+- Sổ lệnh độ sâu thời gian thực (Order Book Depth) cập nhật tự động.
+- Khớp lệnh tự động theo nguyên tắc ưu tiên Giá - Thời gian (Price-Time Priority).
+- Hủy lệnh mở tức thì và tự động hoàn trả số dư đóng băng.
+
+###  2.2 Giao Dịch Hợp Đồng Tương Lai (Futures Trading)
+- Hợp đồng vĩnh cửu (Perpetual Futures) với chế độ ký quỹ riêng biệt (**Isolated Margin**).
+- Tùy chỉnh đòn bẩy linh hoạt từ **1x** đến **125x**.
+- Cơ chế **Reduce-Only** thông minh: Ngăn chặn đặt lệnh đóng vị thế trùng lặp gây đảo chiều rủi ro.
+- Tự động tính toán liên tục: Giá thanh lý (`Liquidation Price`), Ký quỹ duy trì (`MMR`), PnL chưa chốt (`Unrealized PnL`) và PnL đã chốt (`Realized PnL`).
+
+###  2.3 Chuyển Tiền P2P & Digital OTP 4 Số
+- Chuyển tiền tức thời giữa 2 ví Spot (`WalletBalance`) bằng UID người nhận với phí 0 đồng.
+- **Tự động nhận diện người nhận (Debounced Auto-check)**: Tra cứu và hiển thị họ tên người nhận sau 0.6s khi dán UID.
+- **Digital OTP**: Xác thực giao dịch bằng mã PIN 4 chữ số lưu trên database, người dùng có thể tự tạo và đổi mã trong trang Hồ sơ & Bảo mật.
+- Tự động chuyển hướng sang trang tạo mã OTP nếu người dùng chưa thiết lập mã khi bấm chuyển tiền.
+
+###  2.4 Quản Lý Ví & Nạp Rút
+- Tách biệt rõ ràng giữa **Ví Spot** và **Ví Futures**.
+- Chuyển ví nội bộ Spot ⇄ Futures miễn phí, tức thời.
+- Cổng nạp tiền **VNPay**: Nạp tiền VND quy đổi tự động sang USDT vào ví Spot.
+
+###  2.5 Trung Tâm Lệnh & Xuất Báo Cáo Excel
+- Xem toàn bộ lịch sử lệnh Spot, lệnh Futures, lịch sử khớp lệnh và lịch sử vị thế.
+- Bộ lọc nâng cao theo cặp tiền, trạng thái và khoảng ngày tùy chỉnh (Từ ngày - Đến ngày).
+- Xuất file báo cáo tài chính định dạng Excel (`.xlsx`) chuyên nghiệp.
+
+---
+
+## 3. Tech Stack (Công Nghệ Sử Dụng)
+
+### Backend
+| Công nghệ | Phiên bản | Vai trò |
+| :--- | :--- | :--- |
+| **Java** | `21` (LTS) | Ngôn ngữ lập trình chính hiệu năng cao |
+| **Spring Boot** | `3.x` | Framework nền tảng xây dựng REST API & WebSocket |
+| **Spring Security** | `6.x` | Bảo mật hệ thống, cấu hình CORS, phân quyền JWT |
+| **Spring Data JPA** | `3.x` | Quản lý tầng truy xuất dữ liệu ORM với Hibernate |
+| **Apache Kafka** | `4.0.x` | Hàng đợi sự kiện xử lý lệnh bất đồng bộ |
+| **Redis** | `7-alpine` | Caching bảng giá thị trường 24h & quản lý phiên |
+| **MySQL** | `8.0` | Hệ quản trị cơ sở dữ liệu quan hệ ACID |
+| **VNPay SDK** | `2.1.0` | Cổng thanh toán trực tuyến |
+
+### Frontend
+| Công nghệ | Phiên bản | Vai trò |
+| :--- | :--- | :--- |
+| **React** | `19.2.x` | Thư viện UI xây dựng giao diện component-based |
+| **TypeScript** | `5.x` | Ngôn ngữ kiểu tĩnh đảm bảo an toàn mã nguồn |
+| **Vite** | `8.2.x` | Công cụ đóng gói và dev server hiệu năng cao |
+| **Tailwind CSS** | `v4.3.x` | Khung styling utility-first hiện đại |
+| **Lightweight Charts**| `5.2.x` | Thư viện biểu đồ nến TradingView thời gian thực |
+| **Zustand** | `5.0.x` | Thư viện quản lý Global State gọn nhẹ |
+| **Lucide React** | `1.31.x` | Bộ icon giao diện chuẩn quốc tế |
+
+---
+
+## 4. Architecture (Kiến Trúc Hệ Thống)
 
 ```
                      ┌─────────────────────────────────────────┐
@@ -110,201 +122,162 @@
       └───────────────────────────────┘
 ```
 
----
-
-## 💻 Công Nghệ Sử Dụng
-
-### Frontend
-| Công nghệ | Phiên bản | Mục đích sử dụng |
-| :--- | :--- | :--- |
-| **React** | `19.2.x` | Xây dựng giao diện người dùng theo Component-based |
-| **TypeScript** | `5.x` | Đảm bảo tính toàn vẹn kiểu dữ liệu tĩnh |
-| **Vite** | `8.2.x` | Công cụ đóng gói và máy chủ phát triển cực nhanh |
-| **Tailwind CSS** | `v4.3.x` | Khung styling hiện đại, hiệu năng cao |
-| **Lightweight Charts** | `5.2.x` | Biểu đồ nến TradingView tương tác thời gian thực |
-| **Zustand** | `5.0.x` | Quản lý Global State nhẹ, hiệu quả |
-| **SockJS / STOMP** | `7.3.x` | Kết nối WebSocket nhận cập nhật giá và lệnh |
-| **SheetJS (xlsx)** | `0.18.x` | Tạo và xuất file Excel báo cáo giao dịch |
-| **Lucide React** | `1.31.x` | Bộ icon chuẩn hiện đại |
-
-### Backend
-| Công nghệ | Phiên bản | Mục đích sử dụng |
-| :--- | :--- | :--- |
-| **Java** | `21` (LTS) | Ngôn ngữ lập trình chính với hiệu năng cao |
-| **Spring Boot** | `3.x` | Framework nền tảng xây dựng REST API & WebSocket |
-| **Spring Security** | `6.x` | Bảo mật hệ thống, cấu hình CORS, phân quyền |
-| **Spring Data JPA** | `3.x` | Quản lý tầng truy xuất dữ liệu ORM với Hibernate |
-| **Apache Kafka** | `3.x` | Event streaming và hàng đợi xử lý lệnh quy mô lớn |
-| **MySQL** | `8.0` | Hệ quản trị cơ sở dữ liệu quan hệ |
-| **JWT (jjwt)** | `0.11.x` | Tạo và xác thực Access Token / Refresh Token |
-| **VNPay SDK** | `2.1.0` | Tích hợp cổng thanh toán trực tuyến |
+- Chi tiết kiến trúc tham khảo thêm tại: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
 ---
 
-## 📁 Cấu Trúc Thư Mục
+## 5. Project Structure (Cấu Trúc Thư Mục)
 
 ```text
 Trading/
-├── BACKEND_REQUIREMENTS.md       # Tài liệu đặc tả tích hợp API Backend
-├── IMPLEMENTATION_SUMMARY.md     # Báo cáo tổng kết triển khai & danh mục API
-├── PROJECT_BASE.md               # Tài liệu thiết kế Base Backend & Frontend
-├── README.md                     # Tài liệu hướng dẫn dự án tổng quan
+├── docs/
+│   ├── BACKEND_REQUIREMENTS.md       # Đặc tả chức năng & phi chức năng backend
+│   ├── IMPLEMENTATION_SUMMARY.md     # Chi tiết giải pháp hiện thực hóa
+│   ├── API_DOCUMENTATION.md          # Danh mục đầy đủ REST API
+│   ├── ARCHITECTURE.md               # Kiến trúc, sơ đồ Mermaid, ERD
+│   ├── TESTING.md                    # Hướng dẫn chạy và viết test
+│   └── TVN_Exchange_API.postman_collection.json # Bộ Postman Collection
+├── docker-compose.yml                # Docker Compose gom nhóm cả Kafka & Redis
 │
-├── FrontEnd/                     # Ứng dụng Frontend (React + TypeScript)
-│   ├── index.html
-│   ├── package.json
-│   ├── tsconfig.json
-│   ├── vite.config.ts
-│   └── src/
-│       ├── api/                  # Axios instances & API service calls (userApi, walletApi, ...)
-│       ├── components/
-│       │   ├── common/           # Modal, Input, Pagination, Buttons
-│       │   ├── layout/           # Header, Footer (TVN Logo [V★N]), Navigation
-│       │   ├── trading/          # BuySellForm, OrderBook, Chart, Ticker
-│       │   └── wallet/           # P2PTransferModal, CreatePinModal, ChangePinModal, ProfitChart
-│       ├── hooks/                # Custom React Hooks (WebSocket, Auth, ...)
-│       ├── pages/
-│       │   ├── BuyCrypto/        # Mua tiền mã hóa qua VNPay
-│       │   ├── Home/             # Landing page giao diện TVN hiện đại
-│       │   ├── Login/ Register/  # Trang Đăng nhập & Đăng ký
-│       │   ├── Profile/          # Hồ sơ tài khoản & Quản lý Digital OTP 4 số
-│       │   ├── Trade/            # Terminal Spot & Futures Trading
-│       │   └── Wallet/           # Quản lý tài sản & Chuyển P2P
-│       ├── stores/               # Zustand state stores
-│       ├── types/                # TypeScript interface definitions
-│       └── utils/                # Tiện ích định dạng tiền tệ, xuất Excel...
+├── frontend/                         # Mã nguồn ứng dụng Frontend
+│   ├── src/
+│   │   ├── api/                      # Axios client calls (userApi, walletApi, ...)
+│   │   ├── components/               # UI Components (trading, wallet, common, layout)
+│   │   ├── pages/                    # Route Pages (Trade, Wallet, Profile, BuyCrypto)
+│   │   ├── stores/                   # Zustand stores (authStore, walletStore)
+│   │   └── types/                    # TypeScript interfaces
+│   └── package.json
 │
-└── Trading/                      # Ứng dụng Backend (Spring Boot 3 + Java 21)
-    ├── pom.xml
-    ├── mvnw / mvnw.cmd
-    └── src/
-        └── main/
-            ├── java/com/slayer/binacet/
-            │   ├── config/       # Security, Kafka, WebSocket, VNPay Configs
-            │   ├── controller/   # REST Controllers (Auth, Order, Wallet, User, Futures)
-            │   ├── dto/          # Data Transfer Objects (Requests & Responses)
-            │   ├── entity/       # JPA Entities (User, Order, Wallet, Position)
-            │   ├── enums/        # Hệ thống Enums (Status, OrderType, Side)
-            │   ├── exception/    # Global Exception Handler
-            │   ├── repository/   # Spring Data JPA Repositories
-            │   ├── service/      # Business logic & Trading execution engine
-            │   └── util/         # JWT Helpers, SecurityUtils
-            └── resources/
-                └── application.properties # Cấu hình Database, Kafka, VNPay, JWT
+└── Trading/                          # Mã nguồn ứng dụng Backend
+    ├── src/
+    │   ├── main/java/com/slayer/binacet/
+    │   │   ├── config/               # Security, Kafka, WebSocket, VNPay Configs
+    │   │   ├── controller/           # REST Controllers
+    │   │   ├── dto/                  # Requests & Responses DTOs
+    │   │   ├── entity/               # 20 JPA Entities
+    │   │   ├── repository/           # Spring Data JPA Repositories
+    │   │   ├── service/              # Interfaces & Implementations
+    │   │   └── exception/            # GlobalExceptionHandler
+    │   └── main/resources/
+    │       ├── application.properties# Cấu hình kết nối MySQL, Kafka, Redis, JWT
+    │       └── db/migration/V001_init.sql # Script SQL tạo toàn bộ 20 bảng
+    └── pom.xml
 ```
 
 ---
 
-## 🛠️ Hướng Dẫn Cài Đặt & Khởi Chạy
+## 6. Getting Started (Cách Khởi Chạy Project)
 
-### 1. Yêu Cầu Môi Trường
-* **Java**: `JDK 21` trở lên
-* **Node.js**: `v18.x` hoặc `v20.x` (kèm npm 9+)
-* **MySQL**: Phiên bản `8.0+` (Cổng mặc định: `3307` hoặc `3306`)
-* **Docker & Docker Desktop**: Dùng để chạy cụm **Apache Kafka** (cổng `9092`) và **Redis** (cổng `6379`)
+### Bước 1: Khởi động cụm Docker (Kafka & Redis)
+Mở cửa sổ **PowerShell** và khởi chạy cụm Docker Compose:
 
----
+```powershell
+cd D:\project\Trading
+docker compose up -d
 
-### 2. Cài Đặt Cơ Sở Dữ Liệu (MySQL)
-Tạo database mới trong MySQL:
+# Kiểm tra cả kafka và trading_redis đang chạy trong nhóm 'trading'
+docker compose ps
+```
+
+### Bước 2: Chuẩn bị cơ sở dữ liệu MySQL
+Tạo database và nạp file migration [`V001_init.sql`](docs/../Trading/src/main/resources/db/migration/V001_init.sql):
+
 ```sql
 CREATE DATABASE Binance CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
----
+```powershell
+# Thực thi script tạo toàn bộ bảng vào MySQL:
+Get-Content "D:\project\Trading\Trading\src\main\resources\db\migration\V001_init.sql" -Raw | docker exec -i mysqldev mysql -uroot -proot123 Binance
+```
 
-### 3. Khởi Chạy Redis & Apache Kafka Qua Docker (PowerShell)
-Hệ thống sử dụng file `docker-compose.yml` được cấu hình sẵn với `name: trading`, tự động gom cả **Kafka** (chế độ KRaft không cần Zookeeper) và **Redis** vào chung một nhóm project duy nhất trên Docker Desktop.
-
-Mở cửa sổ **PowerShell** trên Windows và thực hiện:
+### Bước 3: Khởi chạy Backend (Spring Boot)
+Mở một cửa sổ dòng lệnh mới:
 
 ```powershell
-# Di chuyển vào thư mục gốc dự án (nơi chứa file docker-compose.yml)
-cd D:\project\Trading
-
-# Khởi chạy cả Redis và Kafka chạy ngầm (-d) trong cùng nhóm project 'trading'
-docker compose up -d
-
-# Xem danh sách và trạng thái các container đang chạy
-docker compose ps
-
-# Kiểm tra kết nối Redis (phản hồi mong đợi: PONG)
-docker exec trading_redis redis-cli ping
-
-# Kiểm tra danh sách topics trên Kafka broker
-docker exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
-```
-
-> **Gợi ý quản lý Docker**:
-> - Xem log thời gian thực: `docker compose logs -f`
-> - Khởi động lại dịch vụ: `docker compose restart`
-> - Dừng các container: `docker compose down`
-
----
-
-### 4. Khởi Chạy Backend (Spring Boot)
-Di chuyển vào thư mục backend và chạy ứng dụng:
-
-```bash
-cd Trading/Trading
-
-# Trên Windows
+cd D:\project\Trading\Trading
 ./mvnw.cmd clean spring-boot:run
-
-# Trên Linux / macOS
-./mvnw clean spring-boot:run
 ```
+* API Server sẵn sàng tại: `http://localhost:8080`
+* WebSocket Endpoint: `http://localhost:8080/ws`
 
-* API Backend: `http://localhost:8080`
-* WebSocket: `http://localhost:8080/ws`
+### Bước 4: Khởi chạy Frontend (React + Vite)
+Mở một cửa sổ dòng lệnh mới:
 
----
-
-### 5. Khởi Chạy Frontend (React + Vite)
-```bash
-cd Trading/FrontEnd
-
-# Cài đặt thư viện
+```powershell
+cd D:\project\Trading\frontend
 npm install
-
-# Khởi động dev server
 npm run dev
 ```
-
-* Ứng dụng web: `http://localhost:3000`
-
----
-
-## 🧪 Tài Khoản Thử Nghiệm & Trải Nghiệm Tính Năng
-
-1. **Đăng ký tài khoản mới**: Truy cập `/register` để tạo tài khoản.
-2. **Thiết lập mã OTP chuyển tiền**:
-   - Truy cập **Hồ sơ & Bảo mật (`/profile`)**.
-   - Bấm **"Thiết Lập Mã OTP Ngay"** để tạo mã PIN 4 số.
-3. **Nhận vốn trải nghiệm**: 
-   - Truy cập trang **Ví tài sản (`/wallet`)**.
-   - Bấm nút **"Nạp"** (Faucet) để nhận USDT, BTC trải nghiệm.
-4. **Chuyển tiền P2P nội bộ**:
-   - Bấm nút **"Chuyển P2P"** tại trang Ví.
-   - Nhập UID người nhận (hệ thống tự động tra cứu tên sau 0.6s).
-   - Nhập số tiền và xác thực bằng **Mã OTP 4 số**.
-5. **Giao dịch Spot & Futures**:
-   - Truy cập `/trade/BTCUSDT` để đặt lệnh Mua/Bán Spot hoặc Futures với đòn bẩy.
+* Mở trình duyệt tại: `http://localhost:3000`
 
 ---
 
-## 📋 Quy Chuẩn Phát Triển (Git Workflow)
+## 7. Configuration (Cấu Hình Môi Trường)
 
-* Tuân thủ quy tắc commit rõ ràng theo chuẩn Conventional Commits:
-  * `feat(...)`: Phát triển tính năng mới.
-  * `fix(...)`: Sửa lỗi phát sinh.
-  * `refactor(...)`: Tối ưu cấu trúc mã nguồn.
-  * `style(...)`: Điều chỉnh giao diện, CSS, khoảng cách.
-  * `docs(...)`: Cập nhật tài liệu, README.
+Các cấu hình quan trọng trong file `Trading/src/main/resources/application.properties`:
+
+| Khóa Cấu Hình | Giá Trị Mặc Định | Mô Tả |
+| :--- | :--- | :--- |
+| `spring.datasource.url` | `jdbc:mysql://localhost:3307/Binance` | Đường dẫn kết nối MySQL |
+| `spring.datasource.username` | `root` | Tài khoản MySQL |
+| `spring.datasource.password` | `root123` | Mật khẩu MySQL |
+| `spring.kafka.bootstrap-servers` | `localhost:9092` | Cổng kết nối Kafka Broker |
+| `spring.data.redis.host` | `localhost` | Địa chỉ máy chủ Redis |
+| `spring.data.redis.port` | `6379` | Cổng Redis |
+| `jwt.expiration` | `86400000` (24h) | Thời gian sống Access Token |
+| `jwt.expirationRefreshToken` | `604800000` (7d) | Thời gian sống Refresh Token |
 
 ---
 
-## 📄 Bản Quyền (License)
+## 8. API Documentation (Tài Liệu API & Postman)
+
+- Toàn bộ đặc tả các endpoint, payload request và response mẫu được lưu trữ tại:
+  👉 **[docs/API_DOCUMENTATION.md](docs/API_DOCUMENTATION.md)**
+- Bộ sưu tập Postman Collection đầy đủ 7 thư mục chức năng:
+  👉 **[docs/TVN_Exchange_API.postman_collection.json](docs/TVN_Exchange_API.postman_collection.json)**
+  *(Hỗ trợ sẵn Test Script tự động trích xuất Bearer Token sau khi đăng nhập và gán vào biến `{{token}}` cho các request tiếp theo)*.
+
+---
+
+## 9. Testing (Kiểm Thử Hệ Thống)
+
+Chi tiết chiến lược và kịch bản test tại: **[docs/TESTING.md](docs/TESTING.md)**.
+
+```powershell
+# Chạy toàn bộ 105 unit & integration tests của Backend:
+cd D:\project\Trading\Trading
+mvn test
+
+# Chạy riêng bộ test kiểm thử luồng Chuyển tiền P2P & Mã Digital OTP:
+mvn test -Dtest=WalletServiceImplTest
+```
+
+---
+
+## 10. Roadmap (Lộ Trình Phát Triển)
+
+###  Đã hoàn thành:
+- [x] Đăng ký, đăng nhập, JWT Stateless Authentication, Refresh Token, Blacklist Logout.
+- [x] Hồ sơ & Bảo mật: Đổi mật khẩu, thiết lập và đổi mã Digital OTP.
+- [x] Quản lý ví Spot: Faucet coin thử nghiệm, phân tách số dư khả dụng và số dư khóa.
+- [x] Chuyển tiền P2P nội bộ: Tra cứu UID người nhận tự động, xác thực mã OTP, khóa chống Double-Spending.
+- [x] Giao dịch Spot: Đặt lệnh Limit/Market, sổ lệnh độ sâu OrderBook, khớp lệnh Kafka, hủy lệnh hoàn tiền.
+- [x] Giao dịch Futures: Đòn bẩy 1x-125x, Isolated Margin, Reduce-Only, tính toán PnL và giá thanh lý.
+- [x] Chuyển ví nội bộ Spot ⇄ Futures tức thời.
+- [x] Cổng nạp tiền VNPay Sandbox (VND sang USDT).
+- [x] Trung tâm lệnh: Lọc theo khoảng ngày tùy chỉnh, xuất báo cáo đối soát file Excel `.xlsx`.
+
+
+###  Kế hoạch phát triển tiếp theo (Next Milestones):
+- [ ] Tích hợp nạp/rút On-chain qua mạng lưới Blockchain thực tế (ERC-20, TRC-20, BEP-20).
+- [ ] Giao dịch P2P Fiat có ký quỹ Escrow giữa người mua và người bán.
+- [ ] Tích hợp tính năng Copy Trading và Bot lưới (Grid Trading Bot).
+- [ ] Ứng dụng di động (Mobile App React Native / Flutter).
+- [ ] Thêm tính năng cho vay tài sản crypto (Lending) và Gửi tài sản để nhận lợi suất
+---
+
+##  Bản Quyền (License)
 
 Dự án được xây dựng và phát triển phục vụ mục đích học tập, nghiên cứu và triển khai nền tảng giao dịch tài sản số thế hệ mới.
 
