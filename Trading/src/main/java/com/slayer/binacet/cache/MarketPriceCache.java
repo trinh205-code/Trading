@@ -37,6 +37,9 @@ public class MarketPriceCache {
         if (redisTemplate != null) {
             try {
                 redisTemplate.opsForHash().put(REDIS_HASH_LAST_PRICES, sym, price.toPlainString());
+            } catch (IllegalStateException e) {
+                // Xảy ra khi Spring context đang đóng hoặc restart (LettuceConnectionFactory destroyed)
+                log.debug("Redis connection factory đã đóng khi tắt ứng dụng: {}", e.getMessage());
             } catch (Exception e) {
                 log.warn("Không thể ghi Last Price lên Redis cho {}: {}", sym, e.getMessage());
             }
@@ -80,6 +83,9 @@ public class MarketPriceCache {
         if (redisTemplate != null) {
             try {
                 redisTemplate.opsForHash().put(REDIS_HASH_MARK_PRICES, sym, price.toPlainString());
+            } catch (IllegalStateException e) {
+                // Xảy ra khi Spring context đang đóng hoặc restart
+                log.debug("Redis connection factory đã đóng khi tắt ứng dụng: {}", e.getMessage());
             } catch (Exception e) {
                 log.warn("Không thể ghi Mark Price lên Redis cho {}: {}", sym, e.getMessage());
             }

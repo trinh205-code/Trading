@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.slayer.binacet.cache.MarketPriceCache;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -37,6 +38,19 @@ public class BinanceWebSocketClient extends TextWebSocketHandler {
     @PostConstruct
     public void connectToBinance() {
         doConnect();
+    }
+
+    @PreDestroy
+    public void disconnect() {
+        log.info("Đang đóng kết nối Binance WebSocket trước khi tắt ứng dụng...");
+        reconnecting.set(false);
+        try {
+            if (currentSession != null && currentSession.isOpen()) {
+                currentSession.close(CloseStatus.NORMAL);
+            }
+        } catch (Exception e) {
+            log.debug("Lỗi khi đóng WebSocket session: {}", e.getMessage());
+        }
     }
 
     private void doConnect() {

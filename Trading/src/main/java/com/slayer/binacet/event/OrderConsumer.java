@@ -48,7 +48,7 @@ public class OrderConsumer {
             // hoàn thành
             idempotentService.markProcessed(idempotentKey, Duration.ofDays(1));
             log.info("xử lí thành công OrderEvent : {}", event.getOrderId());
-            
+
 
         } catch (Exception e) {
             log.error("Lỗi khi xử lý Order {}: {}", event.getOrderId(), e.getMessage(), e);
@@ -58,6 +58,7 @@ public class OrderConsumer {
         }
 
     }
+
 
 
 }
