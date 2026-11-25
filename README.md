@@ -11,6 +11,7 @@
 ![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=for-the-badge&logo=redis&logoColor=white)
 ![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?style=for-the-badge&logo=mysql&logoColor=white)
 ![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-v4-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
+[![CI/CD Pipeline](https://github.com/trinh205-code/Trading/actions/workflows/ci.yml/badge.svg)](https://github.com/trinh205-code/Trading/actions/workflows/ci.yml)
 
 **Hệ thống sàn giao dịch tiền mã hóa hiệu năng cao, hỗ trợ giao dịch Giao ngay (Spot), Hợp đồng tương lai (Futures), Chuyển tiền bảo mật bằng Digital OTP thời gian thực.**
 
@@ -67,7 +68,32 @@
 
 ---
 
-## 3. Tech Stack (Công Nghệ Sử Dụng)
+## 📸 Screenshots & Demo (Giao Diện Hệ Thống)
+
+### 1. Trang Chủ & Khám Phá Thị Trường
+| Landing Page (Trang Chủ Sàn) | Tổng Quan Thị Trường (Markets Overview) |
+| :---: | :---: |
+| ![Landing Page](docs/screenshots/01_landing_page.png) | ![Markets](docs/screenshots/02_market_overview.png) |
+
+| Khám Phá Xu Hướng (Market Discovery) | Giao Dịch Nhanh P2P (Mua USDT bằng VND) |
+| :---: | :---: |
+| ![Market Discovery](docs/screenshots/03_market_discovery.png) | ![P2P Express](docs/screenshots/06_p2p_trading.png) |
+
+### 2. Trạm Giao Dịch Chuyên Nghiệp (Trading Terminals)
+| Giao Dịch Spot (BTC/USDT TradingView & Sổ Lệnh) | Giao Dịch Phái Sinh Futures (Đòn Bẩy 48x & Isolated Margin) |
+| :---: | :---: |
+| ![Spot Trading Terminal](docs/screenshots/04_spot_trading.png) | ![Futures Trading Terminal](docs/screenshots/05_futures_trading.png) |
+
+### 3. Quản Lý Tài Sản & Lịch Sử Giao Dịch
+| Tổng Quan Ví Tài Sản & Phân Bổ Portfolio | Ví Funding (Spot Wallet & Nạp/Rút) |
+| :---: | :---: |
+| ![Wallet Overview](docs/screenshots/07_wallet_overview.png) | ![Spot Wallet](docs/screenshots/08_spot_wallet.png) |
+
+| Ví Phái Sinh (Futures Wallet & Ký Quỹ) | Trung Tâm Lệnh & Lịch Sử Khớp Lệnh |
+| :---: | :---: |
+| ![Futures Wallet](docs/screenshots/09_futures_wallet.png) | ![Order History](docs/screenshots/10_order_history.png) |
+
+---
 
 ### Backend
 | Công nghệ | Phiên bản | Vai trò |
