@@ -54,8 +54,6 @@ public class FuturesPositionServiceImpl implements FuturesPositionService {
                 .collect(Collectors.toList());
     }
 
-
-
     @Override
     @Transactional
     public FuturesPositionResponse closePosition(Long positionId) {
@@ -73,7 +71,6 @@ public class FuturesPositionServiceImpl implements FuturesPositionService {
             throw new RuntimeException("Vị thế này đã được đóng");
         }
 
-
         OrderSide closeSide = activePos.compareTo(BigDecimal.ZERO) > 0 ? OrderSide.SELL : OrderSide.BUY;
         BigDecimal closeQuantity = activePos.abs();
 
@@ -85,7 +82,6 @@ public class FuturesPositionServiceImpl implements FuturesPositionService {
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy vị thế sau khi đóng"));
         return mapAndCalculatePnL(updatedPosition);
     }
-
 
 
     @Override

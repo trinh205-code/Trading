@@ -53,9 +53,7 @@ public class FuturesWalletServiceImpl implements FuturesWalletService {
     @Override
     @Transactional
     public FuturesWalletResponse transferToFutures(String currency, BigDecimal amount) {
-
         User currentUser = getCurrentUser();
-
         validateAmount(amount);
 
         WalletBalance spot = walletBalanceRepository.findByUserIdAndCurrencyForUpdate(currentUser.getId(),currency)
